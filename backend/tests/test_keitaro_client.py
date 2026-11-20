@@ -27,6 +27,21 @@ async def test_sends_api_key_and_base_path():
     assert groups[0]["name"] == "Tests"
 
 
+async def test_get_offer_requests_offer_by_id():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"id": 101, "name": "Nutra", "state": "active"})
+
+    client = make_client(handler)
+    offer = await client.get_offer(101)
+    await client.aclose()
+
+    assert seen["url"] == "https://tracker.test/admin_api/v1/offers/101"
+    assert offer["id"] == 101
+
+
 async def test_error_message_is_extracted():
     client = make_client(lambda r: httpx.Response(404, json={"error": "Not found"}))
     with pytest.raises(KeitaroAPIError) as exc:

@@ -56,6 +56,12 @@ class FakeKeitaroClient:
     async def list_offers(self) -> list[JSON]:
         return copy.deepcopy(self.offers)
 
+    async def get_offer(self, offer_id: int) -> JSON:
+        for offer in self.offers:
+            if offer["id"] == offer_id:
+                return copy.deepcopy(offer)
+        raise KeitaroAPIError("Offer not found", status_code=404)
+
     # --- кампании ----------------------------------------------------------
 
     async def list_campaigns(self) -> list[JSON]:

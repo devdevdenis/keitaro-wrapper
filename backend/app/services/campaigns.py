@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.keitaro import KeitaroAPI, KeitaroError
+from app.keitaro import KeitaroAPI, KeitaroAPIError, KeitaroError
 from app.keitaro import payloads as p
 from app.keitaro.client import JSON
 from app.models import Campaign, Country
@@ -28,6 +28,7 @@ async def create_campaign(
 ) -> tuple[Campaign, list[JSON]]:
     """Создаёт кампанию в Keitaro с двумя потоками и сохраняет локальную запись.
 
+    0. Проверка оффера — до создания кампании, чтобы не создавать и не откатывать её.
     1. Кампания с доменом, группой и источником.
     2. Поток forced: страна == country_code → редирект на Google.
     3. Поток regular: остальной трафик → выбранный оффер.
@@ -35,6 +36,7 @@ async def create_campaign(
     """
     if await session.get(Country, data.country_code) is None:
         raise ServiceError(f"Неизвестный код страны: {data.country_code}", status_code=422)
+    await _ensure_offer_available(keitaro, data.offer_id)
 
     campaign = await keitaro.create_campaign(
         p.campaign_payload(
@@ -80,6 +82,18 @@ async def create_campaign(
     await session.commit()
     await session.refresh(record)
     return record, [google_stream, offer_stream]
+
+
+async def _ensure_offer_available(keitaro: KeitaroAPI, offer_id: int) -> None:
+    """Оффер должен существовать в Keitaro и не быть в архиве."""
+    try:
+        offer = await keitaro.get_offer(offer_id)
+    except KeitaroAPIError as exc:
+        if exc.status_code == 404:
+            raise ServiceError(f"Оффер #{offer_id} не найден в Keitaro", status_code=422) from exc
+        raise
+    if offer.get("state") == "deleted":
+        raise ServiceError(f"Оффер #{offer_id} в архиве Keitaro", status_code=422)
 
 
 async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:

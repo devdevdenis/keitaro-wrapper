@@ -40,6 +40,21 @@ async def test_unknown_country_rejected(client, campaign_form):
     assert response.status_code == 422
 
 
+async def test_unknown_offer_rejected_before_campaign_created(client, keitaro, campaign_form):
+    response = await client.post("/api/campaigns", json={**campaign_form, "offer_id": 999})
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Оффер #999 не найден в Keitaro"
+    assert keitaro.campaigns == {}
+
+
+async def test_archived_offer_rejected_before_campaign_created(client, keitaro, campaign_form):
+    keitaro.offers[0]["state"] = "deleted"
+    response = await client.post("/api/campaigns", json=campaign_form)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Оффер #101 в архиве Keitaro"
+    assert keitaro.campaigns == {}
+
+
 async def test_campaign_archived_when_stream_fails(client, keitaro, campaign_form):
     keitaro.fail_on_stream_create = True
     response = await client.post("/api/campaigns", json=campaign_form)
