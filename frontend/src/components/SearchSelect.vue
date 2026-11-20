@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 
 /**
  * Выпадающий список с поиском.
- * options: [{ value, label, hint?, prefix? }]
+ * options: [{ value, label, hint?, icon? }]
  * multiple — выбор нескольких значений: v-model — массив, список не закрывается после выбора.
  */
 const model = defineModel({ type: [String, Number, Array, null], default: null })
@@ -110,7 +110,7 @@ function onFocusOut(event) {
         }}
       </span>
       <span v-else-if="!multiple && selected" class="value">
-        <span v-if="selected.prefix" class="prefix">{{ selected.prefix }}</span>
+        <span v-if="selected.icon" class="icon">{{ selected.icon }}</span>
         {{ selected.label }}
         <span v-if="selected.hint" class="hint">{{ selected.hint }}</span>
       </span>
@@ -138,7 +138,7 @@ function onFocusOut(event) {
           @mouseenter="highlighted = i"
         >
           <span v-if="multiple" class="check" aria-hidden="true">{{ isChosen(option) ? '✓' : '' }}</span>
-          <span v-if="option.prefix" class="prefix">{{ option.prefix }}</span>
+          <span v-if="option.icon" class="icon">{{ option.icon }}</span>
           <span class="label">{{ option.label }}</span>
           <span v-if="option.hint" class="hint">{{ option.hint }}</span>
         </li>
@@ -148,7 +148,7 @@ function onFocusOut(event) {
 
     <ul v-if="multiple && selectedList.length" class="tags">
       <li v-for="item in selectedList" :key="item.value" class="tag">
-        <span v-if="item.prefix">{{ item.prefix }}</span>
+        <span v-if="item.icon">{{ item.icon }}</span>
         {{ item.hint ?? item.label }}
         <button
           type="button"
@@ -202,7 +202,7 @@ function onFocusOut(event) {
 .open .caret {
   transform: rotate(180deg);
 }
-.prefix {
+.icon {
   margin-right: 2px;
 }
 .hint {

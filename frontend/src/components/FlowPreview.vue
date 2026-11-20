@@ -14,7 +14,7 @@ defineProps({
   <div class="flow">
     <div class="node source">
       <span class="node-kicker">Входящий трафик</span>
-      <strong class="mono">{{ name || 'test_volper_…' }}</strong>
+      <strong class="mono">{{ name || 'Новая кампания' }}</strong>
     </div>
 
     <div class="connector" />

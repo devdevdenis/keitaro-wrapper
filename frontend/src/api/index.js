@@ -11,7 +11,7 @@ export const api = {
   offers: () => http.get('/keitaro/offers'),
 
   // кампании
-  listCampaigns: ({ mine = true } = {}) => http.get(`/campaigns?mine=${mine}`),
+  listCampaigns: () => http.get('/campaigns'),
   getCampaign: (id) => http.get(`/campaigns/${id}`),
   createCampaign: (data) => http.post('/campaigns', data),
 

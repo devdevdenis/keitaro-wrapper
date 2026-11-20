@@ -19,8 +19,7 @@
 | 1 | Google     | `forced`    | `redirect` | Фильтр `country` по странам гео → HTTP-редирект на `google.com` |
 | 2 | Offer      | `regular`   | `landings` | Весь остальной трафик → выбранный оффер (100%)              |
 
-- К названию автоматически добавляется префикс `test_volper_` (`campaign1` → `test_volper_campaign1`).
-  Префикс задаётся в `CAMPAIGN_NAME_PREFIX`.
+- Название передаётся в Keitaro как есть (обрезаются только пробелы по краям).
 - Alias кампании генерируется случайно, ссылка: `https://<домен>/<alias>`.
 - Если поток создать не удалось, кампания отправляется в архив, чтобы в трекере не оставалось «полуготовых» кампаний.
 - Созданная кампания сохраняется в локальной БД (таблица `campaigns`).
@@ -177,7 +176,6 @@ make lint
 | `TEST_DATABASE_URL`      | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper_test` | База для pytest |
 | `KEITARO_URL`            | —                                         | Адрес трекера                              |
 | `KEITARO_API_KEY`        | —                                         | Admin API key                              |
-| `CAMPAIGN_NAME_PREFIX`   | `test_volper_`                            | Префикс названий кампаний                  |
 | `GOOGLE_REDIRECT_URL`    | `https://www.google.com`                  | Куда уводит поток №1                       |
 | `STREAM_REDIRECT_ACTION` | `http`                                    | Тип редиректа потока (`action_type`)       |
 | `COUNTRY_FILTER_NAME`    | `country`                                 | Имя фильтра страны в Keitaro               |
@@ -193,7 +191,7 @@ make lint
 | `GET`    | `/api/keitaro/groups`                     | Группы кампаний                            |
 | `GET`    | `/api/keitaro/traffic-sources`            | Источники трафика                          |
 | `GET`    | `/api/keitaro/offers`                     | Офферы                                     |
-| `GET`    | `/api/campaigns?mine=true`                | Кампании (по умолчанию — только с префиксом)|
+| `GET`    | `/api/campaigns`                          | Все кампании трекера; `tracked` — созданные через обёртку |
 | `POST`   | `/api/campaigns`                          | Создать кампанию с двумя потоками          |
 | `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет офферы с Keitaro |
 | `POST`   | `/api/streams/{id}/offers`                | Черновик: добавить оффер (`{"offer_id"}`)  |

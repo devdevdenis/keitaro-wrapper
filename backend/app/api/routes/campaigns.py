@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, status
 
 from app.api.deps import KeitaroDep, SessionDep, SettingsDep
 from app.schemas import (
@@ -23,16 +23,9 @@ def _summary(campaign: dict, record) -> dict:
 
 
 @router.get("/campaigns", response_model=list[CampaignSummary])
-async def list_campaigns(
-    keitaro: KeitaroDep,
-    session: SessionDep,
-    settings: SettingsDep,
-    mine: bool = Query(True, description="Только кампании с префиксом CAMPAIGN_NAME_PREFIX"),
-):
+async def list_campaigns(keitaro: KeitaroDep, session: SessionDep):
     records = await service.list_records(session)
     campaigns = await keitaro.list_campaigns()
-    if mine:
-        campaigns = [c for c in campaigns if c["name"].startswith(settings.campaign_name_prefix)]
     campaigns.sort(key=lambda c: c["id"], reverse=True)
     return [_summary(c, records.get(c["id"])) for c in campaigns]
 

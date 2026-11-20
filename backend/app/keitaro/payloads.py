@@ -14,12 +14,6 @@ def generate_alias(length: int = 10) -> str:
     return "".join(secrets.choice(_ALIAS_ALPHABET) for _ in range(length))
 
 
-def campaign_name(raw_name: str, prefix: str) -> str:
-    """Добавляет обязательный префикс `test_<фамилия>_`, если его ещё нет."""
-    name = raw_name.strip()
-    return name if name.startswith(prefix) else f"{prefix}{name}"
-
-
 def campaign_payload(
     *, name: str, alias: str, domain_id: int, group_id: int, traffic_source_id: int
 ) -> JSON:

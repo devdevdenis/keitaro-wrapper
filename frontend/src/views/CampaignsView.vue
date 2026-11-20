@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
@@ -7,28 +7,20 @@ import PageHeader from '@/components/PageHeader.vue'
 import StateBadge from '@/components/StateBadge.vue'
 import { useAsync } from '@/composables/useAsync'
 import { useDictionaries } from '@/composables/useDictionaries'
-import { useHealth } from '@/composables/useHealth'
 import { flag, formatDate } from '@/utils/format'
 
-const { health } = useHealth()
 const { load: loadDictionaries, groupsById, sourcesById } = useDictionaries()
 loadDictionaries().catch(() => {})
 
-const onlyMine = ref(true)
 const search = ref('')
-const { data, error, loading, run } = useAsync(() => api.listCampaigns({ mine: onlyMine.value }), {
-  initial: [],
-})
-
-watch(onlyMine, () => run().catch(() => {}), { immediate: true })
+const { data, error, loading, run } = useAsync(() => api.listCampaigns(), { initial: [] })
+run().catch(() => {})
 
 const campaigns = computed(() => {
   const q = search.value.trim().toLowerCase()
   const list = data.value ?? []
   return q ? list.filter((c) => `${c.id} ${c.name} ${c.alias}`.toLowerCase().includes(q)) : list
 })
-
-const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper_')
 </script>
 
 <template>
@@ -44,10 +36,6 @@ const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper
     <div class="card">
       <div class="toolbar">
         <input v-model="search" class="input search" placeholder="Поиск по ID, названию, alias…" />
-        <label class="toggle">
-          <input v-model="onlyMine" type="checkbox" />
-          <span>Только мои <code>{{ prefix }}*</code></span>
-        </label>
         <div class="spacer" />
         <button class="btn btn-ghost btn-sm" :disabled="loading" @click="run().catch(() => {})">
           <span v-if="loading" class="spinner" /> Обновить
@@ -138,17 +126,6 @@ const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper
 }
 .search {
   max-width: 320px;
-}
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-2);
-  cursor: pointer;
-  user-select: none;
-}
-.toggle input {
-  accent-color: var(--accent);
 }
 .state {
   padding: 20px;

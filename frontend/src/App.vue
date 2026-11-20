@@ -46,9 +46,6 @@ const connection = computed(() => {
         <span v-if="health?.keitaro_url && health.keitaro === 'live'" class="tracker-url">
           {{ health.keitaro_url.replace(/^https?:\/\//, '') }}
         </span>
-        <span v-if="health?.campaign_name_prefix" class="tracker-url">
-          префикс: <code>{{ health.campaign_name_prefix }}</code>
-        </span>
       </div>
     </aside>
 

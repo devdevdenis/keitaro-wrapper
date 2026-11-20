@@ -1,4 +1,4 @@
-from app.keitaro.payloads import campaign_name, google_stream_name
+from app.keitaro.payloads import google_stream_name
 from app.models import Campaign
 
 
@@ -7,7 +7,7 @@ async def test_create_campaign_builds_two_streams(client, keitaro, campaign_form
     assert response.status_code == 201, response.text
     body = response.json()
 
-    assert body["record"]["name"] == "test_volper_campaign1"
+    assert body["record"]["name"] == "campaign1"
     assert body["record"]["country_codes"] == ["DE"]
 
     campaign = keitaro.campaigns[body["record"]["keitaro_id"]]
@@ -30,9 +30,11 @@ async def test_create_campaign_builds_two_streams(client, keitaro, campaign_form
     assert await session.get(Campaign, body["record"]["id"]) is not None
 
 
-async def test_prefix_is_not_duplicated():
-    assert campaign_name("test_volper_x", "test_volper_") == "test_volper_x"
-    assert campaign_name("  x ", "test_volper_") == "test_volper_x"
+async def test_name_is_taken_as_is(client, keitaro, campaign_form):
+    response = await client.post("/api/campaigns", json={**campaign_form, "name": "  Nutra DE  "})
+    assert response.status_code == 201, response.text
+    assert response.json()["record"]["name"] == "Nutra DE"  # только обрезаны пробелы
+    assert keitaro.campaigns[response.json()["record"]["keitaro_id"]]["name"] == "Nutra DE"
 
 
 async def test_several_countries_go_to_google(client, keitaro, campaign_form):
@@ -96,16 +98,15 @@ async def test_campaign_archived_when_stream_fails(client, keitaro, campaign_for
     assert all(c["state"] == "deleted" for c in keitaro.campaigns.values())
 
 
-async def test_list_returns_only_prefixed(client, keitaro, campaign_form):
+async def test_list_returns_all_campaigns(client, keitaro, campaign_form):
     await client.post("/api/campaigns", json=campaign_form)
-    await keitaro.create_campaign({"name": "someone_else", "alias": "other"})
+    await keitaro.create_campaign({"name": "created_in_keitaro", "alias": "other"})
 
-    mine = (await client.get("/api/campaigns")).json()
-    assert [c["name"] for c in mine] == ["test_volper_campaign1"]
-    assert mine[0]["tracked"] is True
-
-    everything = (await client.get("/api/campaigns", params={"mine": False})).json()
-    assert len(everything) == 2
+    campaigns = (await client.get("/api/campaigns")).json()
+    assert [(c["name"], c["tracked"]) for c in campaigns] == [
+        ("created_in_keitaro", False),  # новые сверху
+        ("campaign1", True),
+    ]
 
 
 async def test_campaign_detail(client, campaign_form):

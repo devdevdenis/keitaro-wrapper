@@ -34,7 +34,7 @@ async def create_campaign(
 
     campaign = await keitaro.create_campaign(
         p.campaign_payload(
-            name=p.campaign_name(data.name, settings.campaign_name_prefix),
+            name=data.name,
             alias=p.generate_alias(),
             domain_id=data.domain_id,
             group_id=data.group_id,
