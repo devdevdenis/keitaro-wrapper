@@ -43,6 +43,12 @@ async def create_campaign(
     )
 
 
+@router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_campaign(campaign_id: int, keitaro: KeitaroDep, session: SessionDep) -> None:
+    """Удалить кампанию — в Keitaro она перемещается в архив."""
+    await service.delete_campaign(session, keitaro, campaign_id)
+
+
 @router.get("/campaigns/{campaign_id}", response_model=CampaignDetail)
 async def get_campaign(campaign_id: int, keitaro: KeitaroDep, session: SessionDep):
     campaign = await keitaro.get_campaign(campaign_id)

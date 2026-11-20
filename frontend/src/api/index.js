@@ -14,6 +14,7 @@ export const api = {
   listCampaigns: () => http.get('/campaigns'),
   getCampaign: (id) => http.get(`/campaigns/${id}`),
   createCampaign: (data) => http.post('/campaigns', data),
+  deleteCampaign: (id) => http.delete(`/campaigns/${id}`), // в Keitaro — в архив
 
   // редактор офферов в потоке: правки копятся в черновике, в Keitaro — по pushStream
   addStreamOffer: (streamId, offerId) =>

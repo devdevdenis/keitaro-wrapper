@@ -3,14 +3,14 @@
 import logging
 from contextlib import suppress
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.keitaro import KeitaroAPI, KeitaroError
 from app.keitaro import payloads as p
 from app.keitaro.client import JSON
-from app.models import Campaign, Country
+from app.models import Campaign, Country, StreamState
 from app.schemas import CampaignCreate
 from app.services.errors import ServiceError
 from app.services.offers import ensure_offer_available
@@ -95,3 +95,17 @@ async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:
 async def list_records(session: AsyncSession) -> dict[int, Campaign]:
     result = await session.execute(select(Campaign))
     return {c.keitaro_id: c for c in result.scalars()}
+
+
+async def delete_campaign(session: AsyncSession, keitaro: KeitaroAPI, campaign_id: int) -> None:
+    """Удаляет кампанию: в Keitaro она уходит в архив (DELETE /campaigns/{id}).
+
+    Вместе с ней стираются локальная запись и черновики редактора её потоков.
+    """
+    streams = await keitaro.list_streams(campaign_id)  # 404, если кампании нет
+    await keitaro.delete_campaign(campaign_id)
+    await session.execute(delete(Campaign).where(Campaign.keitaro_id == campaign_id))
+    stream_ids = [s["id"] for s in streams]
+    if stream_ids:
+        await session.execute(delete(StreamState).where(StreamState.keitaro_id.in_(stream_ids)))
+    await session.commit()

@@ -1,5 +1,7 @@
+from sqlalchemy import select
+
 from app.keitaro.payloads import google_stream_name
-from app.models import Campaign
+from app.models import Campaign, StreamState
 
 
 async def test_create_campaign_builds_two_streams(client, keitaro, campaign_form, session):
@@ -118,6 +120,24 @@ async def test_campaign_detail(client, campaign_form):
     assert len(detail["streams"]) == 2
 
     assert (await client.get("/api/campaigns/999")).status_code == 404
+
+
+async def test_delete_campaign(client, keitaro, campaign_form, session):
+    created = (await client.post("/api/campaigns", json=campaign_form)).json()["record"]
+    keitaro_id = created["keitaro_id"]
+    await client.get(f"/api/campaigns/{keitaro_id}")  # открыли редактор — есть состояние потока
+    assert await session.get(StreamState, 1) is not None
+
+    response = await client.delete(f"/api/campaigns/{keitaro_id}")
+    assert response.status_code == 204
+
+    assert keitaro.campaigns[keitaro_id]["state"] == "deleted"  # в Keitaro — в архиве
+    assert (await client.get("/api/campaigns")).json() == []
+    session.expire_all()
+    assert await session.get(Campaign, created["id"]) is None
+    assert (await session.scalars(select(StreamState))).all() == []
+
+    assert (await client.delete("/api/campaigns/999")).status_code == 404
 
 
 async def test_keitaro_not_configured_returns_503(client):

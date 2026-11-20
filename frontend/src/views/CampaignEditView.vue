@@ -1,19 +1,22 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import OfferStreamCard from '@/components/OfferStreamCard.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import RefreshIcon from '@/components/RefreshIcon.vue'
 import StateBadge from '@/components/StateBadge.vue'
 import { useAsync } from '@/composables/useAsync'
+import { useDeleteCampaign } from '@/composables/useDeleteCampaign'
 import { useDictionaries } from '@/composables/useDictionaries'
 import { useToast } from '@/composables/useToast'
 import { flag, formatDate } from '@/utils/format'
 
 const props = defineProps({ id: { type: Number, required: true } })
 
+const router = useRouter()
 const toast = useToast()
 const { dict, load, domainsById, groupsById, sourcesById, offersById, countriesByCode } =
   useDictionaries()
@@ -23,6 +26,8 @@ load().catch(() => {})
 const { data: campaign, error, loading, run } = useAsync(() => api.getCampaign(props.id))
 const refresh = () => run().catch(() => {})
 refresh()
+
+const removal = useDeleteCampaign(() => router.push({ name: 'campaigns' }))
 
 /** { streamId, action } — что сейчас выполняется; остальные действия потока заблокированы */
 const busy = ref(null)
@@ -107,6 +112,13 @@ async function act(stream, action, ...args) {
           <button class="btn btn-ghost btn-sm" :disabled="loading || !!busy" @click="refresh">
             <RefreshIcon :spinning="loading" /> Обновить
           </button>
+          <button
+            class="btn btn-ghost btn-sm btn-danger"
+            :disabled="!!busy"
+            @click="removal.ask(campaign)"
+          >
+            Удалить
+          </button>
         </template>
       </PageHeader>
 
@@ -164,6 +176,19 @@ async function act(stream, action, ...args) {
         </aside>
       </div>
     </template>
+
+    <ConfirmDialog
+      :open="!!removal.target.value"
+      :title="`Удалить кампанию «${removal.target.value?.name ?? ''}»?`"
+      confirm-label="Удалить"
+      danger
+      :busy="removal.deleting.value"
+      @confirm="removal.confirm"
+      @cancel="removal.cancel"
+    >
+      Кампания будет перемещена в архив Keitaro и пропадёт из списка. Неопубликованные изменения
+      потоков будут потеряны. Восстановить кампанию можно в Keitaro из архива.
+    </ConfirmDialog>
   </section>
 </template>
 
