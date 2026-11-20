@@ -29,24 +29,49 @@
 
 ## Быстрый старт (локально)
 
-Нужны: Python 3.12+ и [uv](https://docs.astral.sh/uv/), Node.js 20+.
+Нужны: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+.
+
+> `make` сам ищет `uv` в `~/.local/bin` и `~/.cargo/bin`, поэтому команды работают и в терминале
+> IDE (например, кнопка Run в README в PhpStorm). Чтобы вызывать `uv` напрямую, добавьте его в PATH:
+> `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc`.
+
+Установить зависимости бэкенда и фронта и создать `backend/.env` из примера:
 
 ```bash
-make install         # uv sync + npm install + backend/.env из примера
+make install
 ```
 
-Пропишите доступ к трекеру в `backend/.env`:
+Пропишите доступ к трекеру в `backend/.env` (адрес без `/admin_api/v1`, ключ —
+Maintenance → Users → Admin API keys):
 
 ```dotenv
-KEITARO_URL=https://your-tracker.com     # без /admin_api/v1
-KEITARO_API_KEY=...                      # Maintenance → Users → Admin API keys
+KEITARO_URL=https://your-tracker.com
+KEITARO_API_KEY=...
 ```
 
+Создать таблицы (по умолчанию SQLite: `backend/keitaro_wrapper.db`):
+
 ```bash
-make migrate         # создать таблицы (SQLite по умолчанию: backend/keitaro_wrapper.db)
-make fixtures        # загрузить справочник стран
-make backend         # API: http://localhost:8000, Swagger: http://localhost:8000/docs
-make frontend        # в другом терминале, UI: http://localhost:5173
+make migrate
+```
+
+Загрузить справочник стран:
+
+```bash
+make fixtures
+```
+
+Запустить API — http://localhost:8000, Swagger — http://localhost:8000/docs:
+
+```bash
+make backend
+```
+
+В другом терминале запустить UI — http://localhost:5173 (`/api` проксируется на бэкенд,
+см. `vite.config.js`):
+
+```bash
+make frontend
 ```
 
 Без `make` — те же команды вручную:
@@ -62,14 +87,19 @@ uv run uvicorn app.main:app --reload
 
 ```bash
 cd frontend
-npm install
-npm run dev          # /api проксируется на http://localhost:8000 (см. vite.config.js)
+npm ci
+npm run dev
 ```
 
 ## Запуск в Docker
 
+Скопируйте пример настроек и заполните `KEITARO_URL` / `KEITARO_API_KEY`:
+
 ```bash
-cp backend/.env.example backend/.env    # и заполните KEITARO_URL / KEITARO_API_KEY
+cp backend/.env.example backend/.env
+```
+
+```bash
 docker compose up --build
 ```
 
@@ -83,9 +113,16 @@ docker compose up --build
 `backend/app/fixtures/data/countries.json` → таблица `countries`: 249 стран ISO 3166-1 alpha-2,
 из них выбирается гео при создании кампании.
 
+Загрузить справочник:
+
 ```bash
-uv run python -m app.fixtures            # загрузить справочник стран
-uv run python -m app.fixtures --reset    # очистить таблицы и загрузить заново
+make fixtures
+```
+
+Очистить таблицы и загрузить заново:
+
+```bash
+make fixtures-reset
 ```
 
 Загрузка идемпотентна: повторный запуск обновляет записи, а не дублирует их. В тестах справочник
@@ -94,8 +131,11 @@ uv run python -m app.fixtures --reset    # очистить таблицы и з
 ## Тесты и линтер
 
 ```bash
-make test            # pytest
-make lint            # ruff
+make test
+```
+
+```bash
+make lint
 ```
 
 Тесты не обращаются к настоящему трекеру: Keitaro подменяется заглушкой из
