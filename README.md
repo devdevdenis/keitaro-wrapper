@@ -24,10 +24,21 @@
 - Если поток создать не удалось, кампания отправляется в архив, чтобы в трекере не оставалось «полуготовых» кампаний.
 - Созданная кампания сохраняется в локальной БД (таблица `campaigns`).
 
-### 2. Редактор кампании (шаблон)
+### 2. Редактор кампании
 
-Показывает потоки кампании (фильтры, редирект, офферы) и умеет **добавлять и удалять офферы** в
-потоках со схемой `landings`. Сейчас доли трафика делятся поровну; конкретные правила будут позже.
+Показывает потоки кампании: потоки со схемой `landings` — таблицей «оффер — доля — действия»,
+остальные — только названием. Правила для пользователя — в [docs/campaign-editor.md](docs/campaign-editor.md).
+
+- **Add / Remove / Bring Back** и закрепление доли копятся в черновике в локальной БД (таблица
+  `stream_states`); поток с черновиком подсвечивается, Keitaro не меняется.
+- Доли пересчитываются сразу: удалённые — 0 %, закреплённые сохраняют долю, остаток делится
+  поровну (лишние проценты — первым офферам). Закрепление долей не меняет, снятие — пересчитывает.
+- **Push to KT** заменяет офферы потока в Keitaro (`PUT /streams/{id}`), **Cancel** отбрасывает
+  черновик. Удалённые офферы остаются в списке со статусом Removed — их можно вернуть.
+- Push недоступен, если удалены все офферы или освободившуюся долю некому отдать (все закреплены).
+- При каждом открытии редактора офферы сверяются с Keitaro: удалённые там помечаются Removed,
+  добавленные появляются, доли берутся из Keitaro. Если поток изменили в Keitaro, пока был черновик,
+  публикация блокируется (409), чтобы не затереть чужие правки.
 
 ## Быстрый старт (локально)
 
@@ -183,9 +194,13 @@ make lint
 | `GET`    | `/api/keitaro/offers`                     | Офферы                                     |
 | `GET`    | `/api/campaigns?mine=true`                | Кампании (по умолчанию — только с префиксом)|
 | `POST`   | `/api/campaigns`                          | Создать кампанию с двумя потоками          |
-| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки                          |
-| `POST`   | `/api/streams/{id}/offers`                | Добавить оффер в поток                     |
-| `DELETE` | `/api/streams/{id}/offers/{offer_id}`     | Удалить оффер из потока                    |
+| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет офферы с Keitaro |
+| `POST`   | `/api/streams/{id}/offers`                | Черновик: добавить оффер (`{"offer_id"}`)  |
+| `DELETE` | `/api/streams/{id}/offers/{offer_id}`     | Черновик: удалить оффер                    |
+| `POST`   | `/api/streams/{id}/offers/{offer_id}/restore` | Черновик: вернуть удалённый оффер      |
+| `PUT`    | `/api/streams/{id}/offers/{offer_id}/pin` | Черновик: закрепить долю (`{"pinned": true}`) или снять |
+| `POST`   | `/api/streams/{id}/push`                  | Push to KT — опубликовать черновик         |
+| `DELETE` | `/api/streams/{id}/draft`                 | Cancel — отбросить черновик                |
 
 Пример создания кампании:
 
@@ -203,12 +218,15 @@ backend/
   app/
     main.py              # FastAPI-приложение, обработчики ошибок Keitaro
     config.py            # настройки (pydantic-settings)
-    db.py, models.py     # SQLAlchemy: countries, campaigns
+    db.py, models.py     # SQLAlchemy: countries, campaigns, stream_states
     schemas.py           # Pydantic-схемы
     keitaro/
       client.py          # httpx-клиент Admin API v1
-      payloads.py        # сборка тел запросов (кампания, потоки, доли офферов)
-    services/campaigns.py# бизнес-логика создания и редактирования
+      payloads.py        # сборка тел запросов (кампания, потоки, офферы потока)
+    services/
+      campaigns.py       # создание кампании
+      offer_shares.py    # правила редактора: пересчёт долей, сверка с Keitaro
+      stream_editor.py   # черновики потоков, Push to KT, Cancel
     api/routes/          # эндпоинты
     fixtures/            # JSON-фикстуры и CLI загрузки
   alembic/               # миграции
@@ -217,6 +235,6 @@ frontend/
   src/
     api/                 # fetch-клиент
     composables/         # useAsync, useDictionaries, useHealth, useToast
-    components/          # SearchSelect, StreamCard, FlowPreview, …
+    components/          # SearchSelect, OfferStreamCard, FlowPreview, …
     views/               # список, создание, редактор кампании
 ```

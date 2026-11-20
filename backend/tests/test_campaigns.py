@@ -1,4 +1,4 @@
-from app.keitaro.payloads import campaign_name, split_shares
+from app.keitaro.payloads import campaign_name
 from app.models import Campaign
 
 
@@ -75,23 +75,6 @@ async def test_list_returns_only_prefixed(client, keitaro, campaign_form):
     assert len(everything) == 2
 
 
-async def test_add_and_remove_offer(client, campaign_form):
-    created = (await client.post("/api/campaigns", json=campaign_form)).json()
-    stream_id = created["record"]["offer_stream_id"]
-
-    stream = (await client.post(f"/api/streams/{stream_id}/offers", json={"offer_id": 102})).json()
-    assert [(o["offer_id"], o["share"]) for o in stream["offers"]] == [(101, 50), (102, 50)]
-
-    duplicate = await client.post(f"/api/streams/{stream_id}/offers", json={"offer_id": 102})
-    assert duplicate.status_code == 409
-
-    stream = (await client.delete(f"/api/streams/{stream_id}/offers/101")).json()
-    assert [(o["offer_id"], o["share"]) for o in stream["offers"]] == [(102, 100)]
-
-    last = await client.delete(f"/api/streams/{stream_id}/offers/102")
-    assert last.status_code == 409
-
-
 async def test_campaign_detail(client, campaign_form):
     created = (await client.post("/api/campaigns", json=campaign_form)).json()
     keitaro_id = created["record"]["keitaro_id"]
@@ -101,12 +84,6 @@ async def test_campaign_detail(client, campaign_form):
     assert len(detail["streams"]) == 2
 
     assert (await client.get("/api/campaigns/999")).status_code == 404
-
-
-def test_split_shares():
-    assert split_shares(3) == [34, 33, 33]
-    assert sum(split_shares(7)) == 100
-    assert split_shares(0) == []
 
 
 async def test_keitaro_not_configured_returns_503(client):

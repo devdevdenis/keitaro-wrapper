@@ -66,16 +66,13 @@ def offer_stream_payload(*, campaign_id: int, offer_id: int, settings: Settings)
     }
 
 
-def split_shares(count: int) -> list[int]:
-    """Делит 100% трафика поровну между `count` офферами (остаток — первым)."""
-    if count <= 0:
-        return []
-    base, rest = divmod(100, count)
-    return [base + (1 if i < rest else 0) for i in range(count)]
+def stream_offers_payload(shares: list[tuple[int, int]], current: list[JSON]) -> list[JSON]:
+    """Офферы для PUT /streams/{id} — список целиком заменяет офферы потока.
 
-
-def rebalance_offers(offer_ids: list[int]) -> list[JSON]:
+    shares — пары (offer_id, share). У офферов, которые уже стоят в потоке, сохраняем state.
+    """
+    states = {int(o["offer_id"]): o.get("state") or "active" for o in current}
     return [
-        {"offer_id": offer_id, "share": share, "state": "active"}
-        for offer_id, share in zip(offer_ids, split_shares(len(offer_ids)), strict=True)
+        {"offer_id": offer_id, "share": share, "state": states.get(offer_id, "active")}
+        for offer_id, share in shares
     ]

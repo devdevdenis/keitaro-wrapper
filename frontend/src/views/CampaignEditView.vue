@@ -3,9 +3,9 @@ import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
+import OfferStreamCard from '@/components/OfferStreamCard.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateBadge from '@/components/StateBadge.vue'
-import StreamCard from '@/components/StreamCard.vue'
 import { useAsync } from '@/composables/useAsync'
 import { useDictionaries } from '@/composables/useDictionaries'
 import { useToast } from '@/composables/useToast'
@@ -18,10 +18,13 @@ const { dict, load, domainsById, groupsById, sourcesById, offersById, countriesB
   useDictionaries()
 load().catch(() => {})
 
+// каждое открытие и «Обновить» подтягивают изменения, сделанные напрямую в Keitaro
 const { data: campaign, error, loading, run } = useAsync(() => api.getCampaign(props.id))
-run().catch(() => {})
+const refresh = () => run().catch(() => {})
+refresh()
 
-const busyStream = ref(null)
+/** { streamId, action } — что сейчас выполняется; остальные действия потока заблокированы */
+const busy = ref(null)
 
 const offerOptions = computed(() =>
   dict.offers.map((o) => ({ value: o.id, label: o.name, hint: `#${o.id}` })),
@@ -31,27 +34,37 @@ const domain = computed(() => domainsById.value[campaign.value?.domain_id])
 const campaignUrl = computed(() =>
   domain.value && campaign.value ? `https://${domain.value.name}/${campaign.value.alias}` : null,
 )
+const draftCount = computed(
+  () => campaign.value?.streams.filter((s) => s.editor?.has_draft).length ?? 0,
+)
 
-function replaceStream(updated) {
+const ACTIONS = {
+  add: (streamId, offerId) => api.addStreamOffer(streamId, offerId),
+  remove: (streamId, offerId) => api.removeStreamOffer(streamId, offerId),
+  restore: (streamId, offerId) => api.restoreStreamOffer(streamId, offerId),
+  pin: (streamId, offerId, pinned) => api.pinStreamOffer(streamId, offerId, pinned),
+  push: (streamId) => api.pushStream(streamId),
+  cancel: (streamId) => api.cancelStreamDraft(streamId),
+}
+
+function replaceEditor(streamId, editor) {
   campaign.value = {
     ...campaign.value,
-    streams: campaign.value.streams.map((s) => (s.id === updated.id ? updated : s)),
+    streams: campaign.value.streams.map((s) => (s.id === streamId ? { ...s, editor } : s)),
   }
 }
 
-async function mutateOffers(streamId, action, offerId) {
-  busyStream.value = streamId
+async function act(stream, action, ...args) {
+  busy.value = { streamId: stream.id, action }
   try {
-    const updated =
-      action === 'add'
-        ? await api.addStreamOffer(streamId, offerId)
-        : await api.removeStreamOffer(streamId, offerId)
-    replaceStream(updated)
-    toast.success(action === 'add' ? `Оффер #${offerId} добавлен` : `Оффер #${offerId} удалён`)
+    replaceEditor(stream.id, await ACTIONS[action](stream.id, ...args))
+    if (action === 'push') toast.success(`«${stream.name || stream.id}»: опубликовано в Keitaro`)
   } catch (e) {
     toast.error(e.message)
+    // поток изменили в Keitaro — показываем актуальное состояние и блокировку публикации
+    if (action === 'push' && e.status === 409) refresh()
   } finally {
-    busyStream.value = null
+    busy.value = null
   }
 }
 </script>
@@ -87,7 +100,10 @@ async function mutateOffers(streamId, action, offerId) {
           </span>
         </template>
         <template #actions>
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="run().catch(() => {})">
+          <span v-if="draftCount" class="badge tone-amber">
+            Не опубликовано потоков: {{ draftCount }}
+          </span>
+          <button class="btn btn-ghost btn-sm" :disabled="loading || !!busy" @click="refresh">
             <span v-if="loading" class="spinner" /> Обновить
           </button>
         </template>
@@ -95,21 +111,27 @@ async function mutateOffers(streamId, action, offerId) {
 
       <div class="layout">
         <div class="streams">
-          <AlertBox tone="slate" title="Редактор — шаблон">
-            Сейчас умеет добавлять и удалять офферы в потоках со схемой «landings»; доли
-            распределяются поровну. Конкретные правила будут добавлены позже.
-          </AlertBox>
-
-          <StreamCard
-            v-for="stream in campaign.streams"
-            :key="stream.id"
-            :stream="stream"
-            :offers-by-id="offersById"
-            :offer-options="offerOptions"
-            :busy="busyStream === stream.id"
-            @add-offer="(offerId) => mutateOffers(stream.id, 'add', offerId)"
-            @remove-offer="(offerId) => mutateOffers(stream.id, 'remove', offerId)"
-          />
+          <template v-for="stream in campaign.streams" :key="stream.id">
+            <OfferStreamCard
+              v-if="stream.editor"
+              :stream="stream"
+              :offers-by-id="offersById"
+              :offer-options="offerOptions"
+              :busy="busy?.streamId === stream.id ? busy.action : null"
+              @add="(offerId) => act(stream, 'add', offerId)"
+              @remove="(offerId) => act(stream, 'remove', offerId)"
+              @restore="(offerId) => act(stream, 'restore', offerId)"
+              @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
+              @push="act(stream, 'push')"
+              @cancel="act(stream, 'cancel')"
+            />
+            <!-- потоки без офферов редактор не разбирает и не меняет -->
+            <article v-else class="card plain-stream">
+              <span class="position mono">{{ stream.position ?? '—' }}</span>
+              <h3>{{ stream.name || `Поток #${stream.id}` }}</h3>
+              <span class="faint">не редактируется</span>
+            </article>
+          </template>
           <p v-if="!campaign.streams.length" class="muted">У кампании нет потоков.</p>
         </div>
 
@@ -168,8 +190,33 @@ async function mutateOffers(streamId, action, offerId) {
   flex-direction: column;
   gap: 14px;
 }
-h2 {
+h2,
+h3 {
   font-size: 15px;
+}
+.plain-stream {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-left: 3px solid var(--border-strong);
+}
+.plain-stream h3 {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.position {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-weight: 700;
 }
 dl {
   display: grid;

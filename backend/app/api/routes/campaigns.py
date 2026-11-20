@@ -7,10 +7,10 @@ from app.schemas import (
     CampaignDetail,
     CampaignRecord,
     CampaignSummary,
-    StreamOfferAdd,
     StreamOut,
 )
 from app.services import campaigns as service
+from app.services import stream_editor as editor
 
 router = APIRouter(tags=["campaigns"])
 
@@ -55,21 +55,10 @@ async def get_campaign(campaign_id: int, keitaro: KeitaroDep, session: SessionDe
     campaign = await keitaro.get_campaign(campaign_id)
     streams = await keitaro.list_streams(campaign_id)
     record = await service.get_record(session, campaign_id)
+    # открытие редактора: подтягиваем изменения офферов, сделанные в Keitaro
+    states = await editor.sync_streams(session, streams)
     return {
         **_summary(campaign, record),
-        "streams": streams,
+        "streams": [editor.editor_stream(s, states.get(s["id"])) for s in streams],
         "record": CampaignRecord.model_validate(record) if record else None,
     }
-
-
-# --- редактор офферов в потоке (шаблон) --------------------------------------
-
-
-@router.post("/streams/{stream_id}/offers", response_model=StreamOut)
-async def add_offer_to_stream(stream_id: int, data: StreamOfferAdd, keitaro: KeitaroDep):
-    return await service.add_offer(keitaro, stream_id, data.offer_id)
-
-
-@router.delete("/streams/{stream_id}/offers/{offer_id}", response_model=StreamOut)
-async def remove_offer_from_stream(stream_id: int, offer_id: int, keitaro: KeitaroDep):
-    return await service.remove_offer(keitaro, stream_id, offer_id)

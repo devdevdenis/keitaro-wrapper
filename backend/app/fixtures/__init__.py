@@ -9,7 +9,7 @@ from pathlib import Path
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Campaign, Country
+from app.models import Campaign, Country, StreamState
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -27,6 +27,7 @@ async def load_countries(session: AsyncSession) -> int:
 
 
 async def reset(session: AsyncSession) -> None:
+    await session.execute(delete(StreamState))
     await session.execute(delete(Campaign))
     await session.execute(delete(Country))
     await session.commit()

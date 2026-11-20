@@ -1,4 +1,4 @@
-"""Бизнес-логика: создание кампаний и редактирование офферов в потоках."""
+"""Бизнес-логика создания кампаний. Редактор офферов — services/stream_editor.py."""
 
 import logging
 from contextlib import suppress
@@ -7,20 +7,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.keitaro import KeitaroAPI, KeitaroAPIError, KeitaroError
+from app.keitaro import KeitaroAPI, KeitaroError
 from app.keitaro import payloads as p
 from app.keitaro.client import JSON
 from app.models import Campaign, Country
 from app.schemas import CampaignCreate
+from app.services.errors import ServiceError
+from app.services.offers import ensure_offer_available
 
 logger = logging.getLogger(__name__)
-
-
-class ServiceError(Exception):
-    def __init__(self, message: str, status_code: int = 400):
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
 
 
 async def create_campaign(
@@ -36,7 +31,7 @@ async def create_campaign(
     """
     if await session.get(Country, data.country_code) is None:
         raise ServiceError(f"Неизвестный код страны: {data.country_code}", status_code=422)
-    await _ensure_offer_available(keitaro, data.offer_id)
+    await ensure_offer_available(keitaro, data.offer_id)
 
     campaign = await keitaro.create_campaign(
         p.campaign_payload(
@@ -84,18 +79,6 @@ async def create_campaign(
     return record, [google_stream, offer_stream]
 
 
-async def _ensure_offer_available(keitaro: KeitaroAPI, offer_id: int) -> None:
-    """Оффер должен существовать в Keitaro и не быть в архиве."""
-    try:
-        offer = await keitaro.get_offer(offer_id)
-    except KeitaroAPIError as exc:
-        if exc.status_code == 404:
-            raise ServiceError(f"Оффер #{offer_id} не найден в Keitaro", status_code=422) from exc
-        raise
-    if offer.get("state") == "deleted":
-        raise ServiceError(f"Оффер #{offer_id} в архиве Keitaro", status_code=422)
-
-
 async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:
     result = await session.execute(select(Campaign).where(Campaign.keitaro_id == keitaro_id))
     return result.scalar_one_or_none()
@@ -104,34 +87,3 @@ async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:
 async def list_records(session: AsyncSession) -> dict[int, Campaign]:
     result = await session.execute(select(Campaign))
     return {c.keitaro_id: c for c in result.scalars()}
-
-
-# --- редактор офферов (шаблон; правила уточнятся) ---------------------------
-
-
-async def _offer_stream(keitaro: KeitaroAPI, stream_id: int) -> JSON:
-    stream = await keitaro.get_stream(stream_id)
-    if stream.get("schema") != "landings":
-        raise ServiceError("Офферы можно менять только в потоке со схемой «landings»")
-    return stream
-
-
-async def add_offer(keitaro: KeitaroAPI, stream_id: int, offer_id: int) -> JSON:
-    stream = await _offer_stream(keitaro, stream_id)
-    offer_ids = [int(o["offer_id"]) for o in stream.get("offers", [])]
-    if offer_id in offer_ids:
-        raise ServiceError("Этот оффер уже есть в потоке", status_code=409)
-    return await keitaro.update_stream(
-        stream_id, {"offers": p.rebalance_offers([*offer_ids, offer_id])}
-    )
-
-
-async def remove_offer(keitaro: KeitaroAPI, stream_id: int, offer_id: int) -> JSON:
-    stream = await _offer_stream(keitaro, stream_id)
-    offer_ids = [int(o["offer_id"]) for o in stream.get("offers", [])]
-    if offer_id not in offer_ids:
-        raise ServiceError("Оффера нет в потоке", status_code=404)
-    if len(offer_ids) == 1:
-        raise ServiceError("Нельзя удалить последний оффер из потока", status_code=409)
-    remaining = [o for o in offer_ids if o != offer_id]
-    return await keitaro.update_stream(stream_id, {"offers": p.rebalance_offers(remaining)})
