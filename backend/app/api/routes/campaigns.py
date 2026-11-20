@@ -18,7 +18,7 @@ router = APIRouter(tags=["campaigns"])
 def _summary(campaign: dict, record) -> dict:
     data = dict(campaign)
     if record is not None:
-        data.update(tracked=True, country_code=record.country_code, domain_id=record.domain_id)
+        data.update(tracked=True, country_codes=record.country_codes, domain_id=record.domain_id)
     return data
 
 

@@ -140,10 +140,11 @@ async function act(stream, action, ...args) {
           <dl class="card-body">
             <dt>Гео</dt>
             <dd>
-              <template v-if="campaign.country_code">
-                {{ flag(campaign.country_code) }}
-                {{ countriesByCode[campaign.country_code]?.name ?? campaign.country_code }}
-              </template>
+              <ul v-if="campaign.country_codes.length" class="geo-list">
+                <li v-for="code in campaign.country_codes" :key="code">
+                  {{ flag(code) }} {{ countriesByCode[code]?.name ?? code }}
+                </li>
+              </ul>
               <span v-else class="faint">— (создана не через обёртку)</span>
             </dd>
             <dt>Домен</dt>
@@ -230,6 +231,11 @@ dt {
 dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+.geo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 @media (max-width: 1080px) {

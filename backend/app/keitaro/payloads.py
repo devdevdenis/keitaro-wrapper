@@ -34,11 +34,20 @@ def campaign_payload(
     }
 
 
-def google_stream_payload(*, campaign_id: int, country_code: str, settings: Settings) -> JSON:
-    """Поток №1: перехватывающий (forced) — всех из страны отправляет на Google."""
+def google_stream_name(country_codes: list[str], limit: int = 5) -> str:
+    """`Google · DE, AT, CH`; длинный список сокращается: `Google · DE, AT, CH, FR, IT +3`."""
+    shown = ", ".join(country_codes[:limit])
+    rest = len(country_codes) - limit
+    return f"Google · {shown}" + (f" +{rest}" if rest > 0 else "")
+
+
+def google_stream_payload(
+    *, campaign_id: int, country_codes: list[str], settings: Settings
+) -> JSON:
+    """Поток №1: перехватывающий (forced) — всех из выбранных стран отправляет на Google."""
     return {
         "campaign_id": campaign_id,
-        "name": f"Google · {country_code}",
+        "name": google_stream_name(country_codes),
         "type": "forced",
         "schema": "redirect",
         "action_type": settings.stream_redirect_action,
@@ -47,7 +56,7 @@ def google_stream_payload(*, campaign_id: int, country_code: str, settings: Sett
         "state": "active",
         "filter_or": False,
         "filters": [
-            {"name": settings.country_filter_name, "mode": "accept", "payload": [country_code]}
+            {"name": settings.country_filter_name, "mode": "accept", "payload": country_codes}
         ],
     }
 

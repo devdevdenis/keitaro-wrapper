@@ -25,12 +25,11 @@ async def create_campaign(
 
     0. Проверка оффера — до создания кампании, чтобы не создавать и не откатывать её.
     1. Кампания с доменом, группой и источником.
-    2. Поток forced: страна == country_code → редирект на Google.
+    2. Поток forced: страна ∈ country_codes → редирект на Google.
     3. Поток regular: остальной трафик → выбранный оффер.
     Если потоки создать не удалось — кампания отправляется в архив (откат).
     """
-    if await session.get(Country, data.country_code) is None:
-        raise ServiceError(f"Неизвестный код страны: {data.country_code}", status_code=422)
+    await _ensure_countries_known(session, data.country_codes)
     await ensure_offer_available(keitaro, data.offer_id)
 
     campaign = await keitaro.create_campaign(
@@ -47,7 +46,7 @@ async def create_campaign(
     try:
         google_stream = await keitaro.create_stream(
             p.google_stream_payload(
-                campaign_id=campaign_id, country_code=data.country_code, settings=settings
+                campaign_id=campaign_id, country_codes=data.country_codes, settings=settings
             )
         )
         offer_stream = await keitaro.create_stream(
@@ -65,7 +64,7 @@ async def create_campaign(
         keitaro_id=campaign_id,
         alias=campaign["alias"],
         name=campaign["name"],
-        country_code=data.country_code,
+        country_codes=data.country_codes,
         offer_id=data.offer_id,
         domain_id=data.domain_id,
         group_id=data.group_id,
@@ -77,6 +76,15 @@ async def create_campaign(
     await session.commit()
     await session.refresh(record)
     return record, [google_stream, offer_stream]
+
+
+async def _ensure_countries_known(session: AsyncSession, codes: list[str]) -> None:
+    known = set(await session.scalars(select(Country.code).where(Country.code.in_(codes))))
+    unknown = [code for code in codes if code not in known]
+    if len(unknown) == 1:
+        raise ServiceError(f"Неизвестный код страны: {unknown[0]}", status_code=422)
+    if unknown:
+        raise ServiceError(f"Неизвестные коды стран: {', '.join(unknown)}", status_code=422)
 
 
 async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:

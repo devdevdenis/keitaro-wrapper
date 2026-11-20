@@ -28,7 +28,7 @@ const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper
 
 const form = reactive({
   name: '',
-  country_code: null,
+  country_codes: [],
   offer_id: null,
   domain_id: null,
   group_id: null,
@@ -62,7 +62,7 @@ const sourceOptions = computed(() => toOptions(dict.trafficSources))
 const canSubmit = computed(
   () =>
     suffix.value &&
-    form.country_code &&
+    form.country_codes.length &&
     form.offer_id &&
     form.domain_id &&
     form.group_id &&
@@ -120,15 +120,16 @@ async function submit() {
           </label>
 
           <div class="field">
-            <label class="field-label" for="country">Гео (страна)</label>
+            <label class="field-label" for="country">Гео (страны)</label>
             <SearchSelect
               id="country"
-              v-model="form.country_code"
+              v-model="form.country_codes"
+              multiple
               :options="countryOptions"
               :loading="dictLoading"
-              placeholder="Выберите страну"
+              placeholder="Выберите одну или несколько стран"
             />
-            <span class="field-hint">Трафик из этой страны уйдёт на Google</span>
+            <span class="field-hint">Трафик из выбранных стран уйдёт на Google</span>
           </div>
 
           <div class="field">
@@ -197,7 +198,7 @@ async function submit() {
         <div class="card-body">
           <FlowPreview
             :name="fullName"
-            :country="countriesByCode[form.country_code] ?? null"
+            :countries="form.country_codes.map((code) => countriesByCode[code] ?? { code })"
             :offer="offersById[form.offer_id] ?? null"
             :google-url="health?.google_redirect_url"
           />

@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, func
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, String, func
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
@@ -33,15 +33,14 @@ class Campaign(TimestampMixin, Base):
     keitaro_id: Mapped[int] = mapped_column(unique=True, index=True)
     alias: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
-    country_code: Mapped[str] = mapped_column(ForeignKey("countries.code"))
+    # гео: одна или несколько стран (коды из справочника countries), трафик из них — на Google
+    country_codes: Mapped[list[str]] = mapped_column(ARRAY(String(2)))
     offer_id: Mapped[int]
     domain_id: Mapped[int]
     group_id: Mapped[int]
     traffic_source_id: Mapped[int]
     google_stream_id: Mapped[int | None]
     offer_stream_id: Mapped[int | None]
-
-    country: Mapped[Country] = relationship(lazy="joined")
 
 
 class StreamState(TimestampMixin, Base):

@@ -1,4 +1,4 @@
-from app.keitaro.payloads import campaign_name
+from app.keitaro.payloads import campaign_name, google_stream_name
 from app.models import Campaign
 
 
@@ -8,7 +8,7 @@ async def test_create_campaign_builds_two_streams(client, keitaro, campaign_form
     body = response.json()
 
     assert body["record"]["name"] == "test_volper_campaign1"
-    assert body["record"]["country_code"] == "DE"
+    assert body["record"]["country_codes"] == ["DE"]
 
     campaign = keitaro.campaigns[body["record"]["keitaro_id"]]
     assert campaign["domain_id"] == 1
@@ -35,9 +35,42 @@ async def test_prefix_is_not_duplicated():
     assert campaign_name("  x ", "test_volper_") == "test_volper_x"
 
 
-async def test_unknown_country_rejected(client, campaign_form):
-    response = await client.post("/api/campaigns", json={**campaign_form, "country_code": "ZZ"})
+async def test_several_countries_go_to_google(client, keitaro, campaign_form):
+    form = {**campaign_form, "country_codes": ["de", " AT", "ch", "DE"]}
+    response = await client.post("/api/campaigns", json=form)
+    assert response.status_code == 201, response.text
+    body = response.json()
+
+    assert body["record"]["country_codes"] == ["DE", "AT", "CH"]  # верхний регистр, без дублей
+    google = body["streams"][0]
+    assert google["name"] == "Google · DE, AT, CH"
+    assert google["filters"][0]["payload"] == ["DE", "AT", "CH"]
+
+    listed = (await client.get("/api/campaigns")).json()
+    assert listed[0]["country_codes"] == ["DE", "AT", "CH"]
+
+
+async def test_unknown_country_rejected(client, keitaro, campaign_form):
+    response = await client.post(
+        "/api/campaigns", json={**campaign_form, "country_codes": ["DE", "ZZ"]}
+    )
     assert response.status_code == 422
+    assert response.json()["detail"] == "Неизвестный код страны: ZZ"
+    assert keitaro.campaigns == {}
+
+
+async def test_country_list_is_required(client, campaign_form):
+    for codes in ([], ["DEU"], None):
+        response = await client.post(
+            "/api/campaigns", json={**campaign_form, "country_codes": codes}
+        )
+        assert response.status_code == 422, codes
+
+
+def test_google_stream_name_is_shortened():
+    assert google_stream_name(["DE"]) == "Google · DE"
+    codes = ["DE", "AT", "CH", "FR", "IT", "ES", "PT", "NL"]
+    assert google_stream_name(codes) == "Google · DE, AT, CH, FR, IT +3"
 
 
 async def test_unknown_offer_rejected_before_campaign_created(client, keitaro, campaign_form):

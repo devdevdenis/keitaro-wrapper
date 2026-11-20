@@ -4,10 +4,12 @@ import { computed, nextTick, ref, watch } from 'vue'
 /**
  * Выпадающий список с поиском.
  * options: [{ value, label, hint?, prefix? }]
+ * multiple — выбор нескольких значений: v-model — массив, список не закрывается после выбора.
  */
-const model = defineModel({ type: [String, Number, null], default: null })
+const model = defineModel({ type: [String, Number, Array, null], default: null })
 const props = defineProps({
   options: { type: Array, default: () => [] },
+  multiple: { type: Boolean, default: false },
   placeholder: { type: String, default: 'Выберите…' },
   disabled: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
@@ -21,6 +23,14 @@ const searchInput = ref(null)
 const root = ref(null)
 
 const selected = computed(() => props.options.find((o) => o.value === model.value) ?? null)
+const selectedValues = computed(() => (props.multiple ? (model.value ?? []) : []))
+const selectedList = computed(() =>
+  selectedValues.value.map(
+    (value) => props.options.find((o) => o.value === value) ?? { value, label: String(value) },
+  ),
+)
+const isChosen = (option) =>
+  props.multiple ? selectedValues.value.includes(option.value) : option.value === model.value
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -37,7 +47,7 @@ async function toggle() {
   open.value = !open.value
   if (open.value) {
     query.value = ''
-    const idx = filtered.value.findIndex((o) => o.value === model.value)
+    const idx = filtered.value.findIndex(isChosen)
     highlighted.value = Math.max(idx, 0)
     await nextTick()
     searchInput.value?.focus()
@@ -45,8 +55,20 @@ async function toggle() {
 }
 
 function choose(option) {
-  model.value = option.value
-  open.value = false
+  if (!props.multiple) {
+    model.value = option.value
+    open.value = false
+    return
+  }
+  model.value = isChosen(option)
+    ? selectedValues.value.filter((v) => v !== option.value)
+    : [...selectedValues.value, option.value]
+  query.value = '' // сразу можно искать следующее значение
+  searchInput.value?.focus()
+}
+
+function unselect(value) {
+  model.value = selectedValues.value.filter((v) => v !== value)
 }
 
 function onKeydown(event) {
@@ -82,7 +104,12 @@ function onFocusOut(event) {
       :aria-expanded="open"
       @click="toggle"
     >
-      <span v-if="selected" class="value">
+      <span v-if="multiple && selectedList.length" class="value">
+        {{
+          selectedList.length === 1 ? selectedList[0].label : `Выбрано: ${selectedList.length}`
+        }}
+      </span>
+      <span v-else-if="!multiple && selected" class="value">
         <span v-if="selected.prefix" class="prefix">{{ selected.prefix }}</span>
         {{ selected.label }}
         <span v-if="selected.hint" class="hint">{{ selected.hint }}</span>
@@ -105,11 +132,12 @@ function onFocusOut(event) {
           :key="option.value"
           role="option"
           tabindex="-1"
-          :aria-selected="option.value === model"
-          :class="{ highlighted: i === highlighted, chosen: option.value === model }"
+          :aria-selected="isChosen(option)"
+          :class="{ highlighted: i === highlighted, chosen: isChosen(option) }"
           @mousedown.prevent="choose(option)"
           @mouseenter="highlighted = i"
         >
+          <span v-if="multiple" class="check" aria-hidden="true">{{ isChosen(option) ? '✓' : '' }}</span>
           <span v-if="option.prefix" class="prefix">{{ option.prefix }}</span>
           <span class="label">{{ option.label }}</span>
           <span v-if="option.hint" class="hint">{{ option.hint }}</span>
@@ -117,6 +145,22 @@ function onFocusOut(event) {
         <li v-if="!filtered.length" class="empty">Ничего не найдено</li>
       </ul>
     </div>
+
+    <ul v-if="multiple && selectedList.length" class="tags">
+      <li v-for="item in selectedList" :key="item.value" class="tag">
+        <span v-if="item.prefix">{{ item.prefix }}</span>
+        {{ item.hint ?? item.label }}
+        <button
+          type="button"
+          class="tag-remove"
+          :disabled="disabled"
+          :aria-label="`Убрать ${item.label}`"
+          @click="unselect(item.value)"
+        >
+          ×
+        </button>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -219,5 +263,49 @@ li.chosen {
 li.empty {
   color: var(--text-3);
   cursor: default;
+}
+.check {
+  width: 14px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: none;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: visible;
+}
+.tag {
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: default;
+}
+.tag-remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tag-remove:hover:not(:disabled) {
+  background: var(--red-soft);
+  color: var(--red);
 }
 </style>

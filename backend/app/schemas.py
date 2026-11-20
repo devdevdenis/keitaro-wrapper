@@ -42,7 +42,7 @@ class OfferOut(KeitaroEntity):
 
 class CampaignCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100, examples=["campaign1"])
-    country_code: str = Field(min_length=2, max_length=2, examples=["DE"])
+    country_codes: list[str] = Field(min_length=1, examples=[["DE", "AT"]])
     offer_id: int = Field(gt=0)
     domain_id: int = Field(gt=0)
     group_id: int = Field(gt=0)
@@ -56,10 +56,14 @@ class CampaignCreate(BaseModel):
             raise ValueError("Название не может быть пустым")
         return value
 
-    @field_validator("country_code")
+    @field_validator("country_codes")
     @classmethod
-    def _upper_country(cls, value: str) -> str:
-        return value.strip().upper()
+    def _normalize_countries(cls, value: list[str]) -> list[str]:
+        codes = list(dict.fromkeys(code.strip().upper() for code in value))  # без дублей
+        bad = [code for code in codes if len(code) != 2 or not code.isalpha()]
+        if bad:
+            raise ValueError(f"Код страны — две латинские буквы (ISO 3166-1): {', '.join(bad)}")
+        return codes
 
 
 class CampaignRecord(ORMModel):
@@ -69,7 +73,7 @@ class CampaignRecord(ORMModel):
     keitaro_id: int
     alias: str
     name: str
-    country_code: str
+    country_codes: list[str]
     offer_id: int
     domain_id: int
     group_id: int
@@ -92,7 +96,7 @@ class CampaignSummary(BaseModel):
     traffic_source_id: int | None = None
     created_at: str | None = None
     tracked: bool = False
-    country_code: str | None = None
+    country_codes: list[str] = Field(default_factory=list)
     domain_id: int | None = None
 
 

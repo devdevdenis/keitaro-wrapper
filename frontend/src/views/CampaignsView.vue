@@ -104,8 +104,12 @@ const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper
                   </span>
                 </div>
               </td>
-              <td class="nowrap">
-                <span v-if="c.country_code">{{ flag(c.country_code) }} {{ c.country_code }}</span>
+              <td>
+                <span v-if="c.country_codes.length" :title="c.country_codes.join(', ')">
+                  <span v-for="code in c.country_codes" :key="code" class="geo">
+                    {{ flag(code) }} {{ code }}
+                  </span>
+                </span>
                 <span v-else class="faint">—</span>
               </td>
               <td class="muted">
@@ -170,6 +174,11 @@ const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper
   gap: 8px;
   margin-top: 4px;
   font-size: 12px;
+}
+.geo {
+  display: inline-block;
+  margin-right: 8px;
+  white-space: nowrap;
 }
 .nowrap {
   white-space: nowrap;
