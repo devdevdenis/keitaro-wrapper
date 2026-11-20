@@ -1,0 +1,26 @@
+[
+  {
+    "keitaro_id": 1,
+    "alias": "demo0000de",
+    "name": "test_volper_campaign1",
+    "country_code": "DE",
+    "offer_id": 101,
+    "domain_id": 1,
+    "group_id": 1,
+    "traffic_source_id": 1,
+    "google_stream_id": 1,
+    "offer_stream_id": 2
+  },
+  {
+    "keitaro_id": 2,
+    "alias": "demo0000gb",
+    "name": "test_volper_campaign2",
+    "country_code": "GB",
+    "offer_id": 102,
+    "domain_id": 2,
+    "group_id": 2,
+    "traffic_source_id": 2,
+    "google_stream_id": 3,
+    "offer_stream_id": 4
+  }
+]
