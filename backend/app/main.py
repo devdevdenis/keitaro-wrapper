@@ -5,7 +5,7 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import campaigns, dictionaries, meta
+from app.api.routes import campaigns, dictionaries, meta, streams
 from app.config import get_settings
 from app.db import engine
 from app.keitaro import (
@@ -15,7 +15,7 @@ from app.keitaro import (
     KeitaroUnavailable,
     build_keitaro_client,
 )
-from app.services.campaigns import ServiceError
+from app.services.errors import ServiceError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
     api.include_router(meta.router)
     api.include_router(dictionaries.router)
     api.include_router(campaigns.router)
+    api.include_router(streams.router)
     app.include_router(api)
 
     @app.exception_handler(KeitaroError)

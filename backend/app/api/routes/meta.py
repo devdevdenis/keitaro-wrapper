@@ -12,6 +12,5 @@ async def health(request: Request, settings: SettingsDep) -> dict:
         "status": "ok",
         "keitaro": mode,
         "keitaro_url": settings.keitaro_url or None,
-        "campaign_name_prefix": settings.campaign_name_prefix,
         "google_redirect_url": settings.google_redirect_url,
     }

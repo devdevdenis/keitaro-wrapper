@@ -14,12 +14,6 @@ def generate_alias(length: int = 10) -> str:
     return "".join(secrets.choice(_ALIAS_ALPHABET) for _ in range(length))
 
 
-def campaign_name(raw_name: str, prefix: str) -> str:
-    """Добавляет обязательный префикс `test_<фамилия>_`, если его ещё нет."""
-    name = raw_name.strip()
-    return name if name.startswith(prefix) else f"{prefix}{name}"
-
-
 def campaign_payload(
     *, name: str, alias: str, domain_id: int, group_id: int, traffic_source_id: int
 ) -> JSON:
@@ -34,11 +28,20 @@ def campaign_payload(
     }
 
 
-def google_stream_payload(*, campaign_id: int, country_code: str, settings: Settings) -> JSON:
-    """Поток №1: перехватывающий (forced) — всех из страны отправляет на Google."""
+def google_stream_name(country_codes: list[str], limit: int = 5) -> str:
+    """`Google · DE, AT, CH`; длинный список сокращается: `Google · DE, AT, CH, FR, IT +3`."""
+    shown = ", ".join(country_codes[:limit])
+    rest = len(country_codes) - limit
+    return f"Google · {shown}" + (f" +{rest}" if rest > 0 else "")
+
+
+def google_stream_payload(
+    *, campaign_id: int, country_codes: list[str], settings: Settings
+) -> JSON:
+    """Поток №1: перехватывающий (forced) — всех из выбранных стран отправляет на Google."""
     return {
         "campaign_id": campaign_id,
-        "name": f"Google · {country_code}",
+        "name": google_stream_name(country_codes),
         "type": "forced",
         "schema": "redirect",
         "action_type": settings.stream_redirect_action,
@@ -47,7 +50,7 @@ def google_stream_payload(*, campaign_id: int, country_code: str, settings: Sett
         "state": "active",
         "filter_or": False,
         "filters": [
-            {"name": settings.country_filter_name, "mode": "accept", "payload": [country_code]}
+            {"name": settings.country_filter_name, "mode": "accept", "payload": country_codes}
         ],
     }
 
@@ -66,16 +69,13 @@ def offer_stream_payload(*, campaign_id: int, offer_id: int, settings: Settings)
     }
 
 
-def split_shares(count: int) -> list[int]:
-    """Делит 100% трафика поровну между `count` офферами (остаток — первым)."""
-    if count <= 0:
-        return []
-    base, rest = divmod(100, count)
-    return [base + (1 if i < rest else 0) for i in range(count)]
+def stream_offers_payload(shares: list[tuple[int, int]], current: list[JSON]) -> list[JSON]:
+    """Офферы для PUT /streams/{id} — список целиком заменяет офферы потока.
 
-
-def rebalance_offers(offer_ids: list[int]) -> list[JSON]:
+    shares — пары (offer_id, share). У офферов, которые уже стоят в потоке, сохраняем state.
+    """
+    states = {int(o["offer_id"]): o.get("state") or "active" for o in current}
     return [
-        {"offer_id": offer_id, "share": share, "state": "active"}
-        for offer_id, share in zip(offer_ids, split_shares(len(offer_ids)), strict=True)
+        {"offer_id": offer_id, "share": share, "state": states.get(offer_id, "active")}
+        for offer_id, share in shares
     ]

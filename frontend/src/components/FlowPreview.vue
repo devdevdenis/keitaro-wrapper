@@ -4,7 +4,7 @@ import { flag } from '@/utils/format'
 
 defineProps({
   name: { type: String, default: '' },
-  country: { type: Object, default: null }, // { code, name }
+  countries: { type: Array, default: () => [] }, // [{ code, name }]
   offer: { type: Object, default: null }, // { id, name }
   googleUrl: { type: String, default: 'https://www.google.com' },
 })
@@ -14,7 +14,7 @@ defineProps({
   <div class="flow">
     <div class="node source">
       <span class="node-kicker">Входящий трафик</span>
-      <strong class="mono">{{ name || 'test_volper_…' }}</strong>
+      <strong class="mono">{{ name || 'Новая кампания' }}</strong>
     </div>
 
     <div class="connector" />
@@ -25,8 +25,11 @@ defineProps({
       </div>
       <div class="rule">
         <span class="faint">если</span>
-        <span class="chip">country = {{ country?.code ?? '??' }}</span>
-        <span v-if="country">{{ flag(country.code) }} {{ country.name }}</span>
+        <span class="chip">
+          country {{ countries.length > 1 ? '∈' : '=' }}
+          {{ countries.length ? countries.map((c) => c.code).join(', ') : '??' }}
+        </span>
+        <span v-for="c in countries" :key="c.code">{{ flag(c.code) }} {{ c.name ?? c.code }}</span>
       </div>
       <div class="target">
         <span class="arrow">→</span>

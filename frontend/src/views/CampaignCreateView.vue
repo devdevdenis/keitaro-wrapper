@@ -24,11 +24,9 @@ const {
 } = useDictionaries()
 load().catch(() => {})
 
-const prefix = computed(() => health.value?.campaign_name_prefix ?? 'test_volper_')
-
 const form = reactive({
   name: '',
-  country_code: null,
+  country_codes: [],
   offer_id: null,
   domain_id: null,
   group_id: null,
@@ -37,15 +35,10 @@ const form = reactive({
 const submitting = ref(false)
 const submitError = ref(null)
 
-/** Пользователь вводит только суффикс; если вставил с префиксом — не дублируем */
-const suffix = computed(() => {
-  const value = form.name.trim()
-  return value.startsWith(prefix.value) ? value.slice(prefix.value.length) : value
-})
-const fullName = computed(() => (suffix.value ? `${prefix.value}${suffix.value}` : ''))
+const name = computed(() => form.name.trim())
 
 const countryOptions = computed(() =>
-  dict.countries.map((c) => ({ value: c.code, label: c.name, hint: c.code, prefix: flag(c.code) })),
+  dict.countries.map((c) => ({ value: c.code, label: c.name, hint: c.code, icon: flag(c.code) })),
 )
 const offerOptions = computed(() =>
   dict.offers.map((o) => ({
@@ -61,8 +54,8 @@ const sourceOptions = computed(() => toOptions(dict.trafficSources))
 
 const canSubmit = computed(
   () =>
-    suffix.value &&
-    form.country_code &&
+    name.value &&
+    form.country_codes.length &&
     form.offer_id &&
     form.domain_id &&
     form.group_id &&
@@ -75,7 +68,7 @@ async function submit() {
   submitting.value = true
   submitError.value = null
   try {
-    const result = await api.createCampaign({ ...form, name: suffix.value })
+    const result = await api.createCampaign({ ...form, name: name.value })
     toast.success(`Кампания ${result.record.name} создана`)
     router.push({ name: 'campaign-edit', params: { id: result.record.keitaro_id } })
   } catch (e) {
@@ -103,32 +96,28 @@ async function submit() {
         <div class="card-body fields">
           <label class="field span-2" for="name">
             <span class="field-label">Название</span>
-            <div class="input name-input">
-              <span class="name-prefix mono">{{ prefix }}</span>
-              <input
-                id="name"
-                v-model="form.name"
-                placeholder="campaign1"
-                autocomplete="off"
-                maxlength="100"
-              />
-            </div>
-            <span class="field-hint">
-              Префикс добавляется автоматически. Итог:
-              <code>{{ fullName || `${prefix}…` }}</code>
-            </span>
+            <input
+              id="name"
+              v-model="form.name"
+              class="input"
+              placeholder="Например, Nutra DE — Facebook"
+              autocomplete="off"
+              maxlength="100"
+            />
+            <span class="field-hint">Так кампания будет называться в Keitaro</span>
           </label>
 
           <div class="field">
-            <label class="field-label" for="country">Гео (страна)</label>
+            <label class="field-label" for="country">Гео (страны)</label>
             <SearchSelect
               id="country"
-              v-model="form.country_code"
+              v-model="form.country_codes"
+              multiple
               :options="countryOptions"
               :loading="dictLoading"
-              placeholder="Выберите страну"
+              placeholder="Выберите одну или несколько стран"
             />
-            <span class="field-hint">Трафик из этой страны уйдёт на Google</span>
+            <span class="field-hint">Трафик из выбранных стран уйдёт на Google</span>
           </div>
 
           <div class="field">
@@ -196,8 +185,8 @@ async function submit() {
         <div class="card-header"><h2>Схема</h2></div>
         <div class="card-body">
           <FlowPreview
-            :name="fullName"
-            :country="countriesByCode[form.country_code] ?? null"
+            :name="name"
+            :countries="form.country_codes.map((code) => countriesByCode[code] ?? { code })"
             :offer="offersById[form.offer_id] ?? null"
             :google-url="health?.google_redirect_url"
           />
@@ -231,33 +220,6 @@ h2 {
 .divider {
   height: 1px;
   background: var(--border);
-}
-.name-input {
-  display: flex;
-  align-items: center;
-  padding: 0;
-  overflow: hidden;
-}
-.name-prefix {
-  display: flex;
-  align-items: center;
-  align-self: stretch;
-  padding: 0 10px;
-  border-right: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-2);
-}
-.name-input input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0 10px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-family: var(--mono);
-  outline: none;
 }
 .card-footer {
   display: flex;

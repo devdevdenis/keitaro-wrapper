@@ -1,6 +1,7 @@
 # Keitaro Wrapper
 
-Обёртка над [Admin API](https://admin-api.docs.keitaro.io/) трекера Keitaro: создание кампаний и редактор офферов в потоках.
+Интерфейс для трекера Keitaro поверх его [Admin API](https://admin-api.docs.keitaro.io/): создание кампаний и
+редактор офферов в потоках.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
 
@@ -10,24 +11,41 @@
 
 ### 1. Создание кампании
 
-Форма принимает **название**, **гео (код страны)** и **ID оффера**, а также **домен**, **группу** и
-**источник трафика** (списки подтягиваются из Keitaro API). Обёртка создаёт кампанию с двумя потоками:
+Форма принимает **название**, **гео (одна или несколько стран)** и **ID оффера**, а также
+**домен**, **группу** и **источник трафика** (списки подтягиваются из Keitaro API). Система создаёт
+кампанию с двумя потоками:
 
 | # | Поток      | Тип Keitaro | Схема      | Что делает                                                  |
 |---|------------|-------------|------------|-------------------------------------------------------------|
-| 1 | Google     | `forced`    | `redirect` | Фильтр `country = <гео>` → HTTP-редирект на `google.com`    |
+| 1 | Google     | `forced`    | `redirect` | Фильтр `country` по странам гео → HTTP-редирект на `google.com` |
 | 2 | Offer      | `regular`   | `landings` | Весь остальной трафик → выбранный оффер (100%)              |
 
-- К названию автоматически добавляется префикс `test_volper_` (`campaign1` → `test_volper_campaign1`).
-  Префикс задаётся в `CAMPAIGN_NAME_PREFIX`.
+- Название передаётся в Keitaro как есть (обрезаются только пробелы по краям).
 - Alias кампании генерируется случайно, ссылка: `https://<домен>/<alias>`.
 - Если поток создать не удалось, кампания отправляется в архив, чтобы в трекере не оставалось «полуготовых» кампаний.
 - Созданная кампания сохраняется в локальной БД (таблица `campaigns`).
 
-### 2. Редактор кампании (шаблон)
+### 2. Редактор кампании
 
-Показывает потоки кампании (фильтры, редирект, офферы) и умеет **добавлять и удалять офферы** в
-потоках со схемой `landings`. Сейчас доли трафика делятся поровну; конкретные правила будут позже.
+Показывает потоки кампании: потоки со схемой `landings` — таблицей «оффер — доля — действия»,
+остальные — только названием. Правила для пользователя — в [docs/campaign-editor.md](docs/campaign-editor.md).
+
+- **Add / Remove / Bring Back** и закрепление доли копятся в черновике в локальной БД (таблица
+  `stream_states`); поток с черновиком подсвечивается, Keitaro не меняется.
+- Доли пересчитываются сразу: удалённые — 0 %, закреплённые сохраняют долю, остаток делится
+  поровну (лишние проценты — первым офферам). Закрепление долей не меняет, снятие — пересчитывает.
+- **Push to KT** заменяет офферы потока в Keitaro (`PUT /streams/{id}`), **Cancel** отбрасывает
+  черновик. Удалённые офферы остаются в списке со статусом Removed — их можно вернуть.
+- Push недоступен, если удалены все офферы или освободившуюся долю некому отдать (все закреплены).
+- При каждом открытии редактора офферы сверяются с Keitaro: удалённые там помечаются Removed,
+  добавленные появляются, доли берутся из Keitaro. Если поток изменили в Keitaro, пока был черновик,
+  публикация блокируется (409), чтобы не затереть чужие правки.
+
+### 3. Список и удаление кампаний
+
+Все кампании трекера с поиском и пагинацией на клиенте (страница, размер страницы и поиск — в
+query-параметрах `page`, `per_page`, `q`). Удаление — `DELETE /campaigns/{id}` в Keitaro, то есть
+перенос в архив; локальная запись и черновики потоков кампании удаляются.
 
 ## Быстрый старт (локально)
 
@@ -165,7 +183,6 @@ make lint
 | `TEST_DATABASE_URL`      | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper_test` | База для pytest |
 | `KEITARO_URL`            | —                                         | Адрес трекера                              |
 | `KEITARO_API_KEY`        | —                                         | Admin API key                              |
-| `CAMPAIGN_NAME_PREFIX`   | `test_volper_`                            | Префикс названий кампаний                  |
 | `GOOGLE_REDIRECT_URL`    | `https://www.google.com`                  | Куда уводит поток №1                       |
 | `STREAM_REDIRECT_ACTION` | `http`                                    | Тип редиректа потока (`action_type`)       |
 | `COUNTRY_FILTER_NAME`    | `country`                                 | Имя фильтра страны в Keitaro               |
@@ -181,18 +198,23 @@ make lint
 | `GET`    | `/api/keitaro/groups`                     | Группы кампаний                            |
 | `GET`    | `/api/keitaro/traffic-sources`            | Источники трафика                          |
 | `GET`    | `/api/keitaro/offers`                     | Офферы                                     |
-| `GET`    | `/api/campaigns?mine=true`                | Кампании (по умолчанию — только с префиксом)|
+| `GET`    | `/api/campaigns`                          | Все кампании трекера; `tracked` — созданные здесь, а не в Keitaro |
 | `POST`   | `/api/campaigns`                          | Создать кампанию с двумя потоками          |
-| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки                          |
-| `POST`   | `/api/streams/{id}/offers`                | Добавить оффер в поток                     |
-| `DELETE` | `/api/streams/{id}/offers/{offer_id}`     | Удалить оффер из потока                    |
+| `DELETE` | `/api/campaigns/{id}`                     | Удалить кампанию (в Keitaro — в архив)     |
+| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет офферы с Keitaro |
+| `POST`   | `/api/streams/{id}/offers`                | Черновик: добавить оффер (`{"offer_id"}`)  |
+| `DELETE` | `/api/streams/{id}/offers/{offer_id}`     | Черновик: удалить оффер                    |
+| `POST`   | `/api/streams/{id}/offers/{offer_id}/restore` | Черновик: вернуть удалённый оффер      |
+| `PUT`    | `/api/streams/{id}/offers/{offer_id}/pin` | Черновик: закрепить долю (`{"pinned": true}`) или снять |
+| `POST`   | `/api/streams/{id}/push`                  | Push to KT — опубликовать черновик         |
+| `DELETE` | `/api/streams/{id}/draft`                 | Cancel — отбросить черновик                |
 
 Пример создания кампании:
 
 ```bash
 curl -X POST http://localhost:8000/api/campaigns \
   -H 'Content-Type: application/json' \
-  -d '{"name": "campaign1", "country_code": "DE", "offer_id": 101,
+  -d '{"name": "campaign1", "country_codes": ["DE", "AT"], "offer_id": 101,
        "domain_id": 1, "group_id": 1, "traffic_source_id": 1}'
 ```
 
@@ -203,12 +225,15 @@ backend/
   app/
     main.py              # FastAPI-приложение, обработчики ошибок Keitaro
     config.py            # настройки (pydantic-settings)
-    db.py, models.py     # SQLAlchemy: countries, campaigns
+    db.py, models.py     # SQLAlchemy: countries, campaigns, stream_states
     schemas.py           # Pydantic-схемы
     keitaro/
       client.py          # httpx-клиент Admin API v1
-      payloads.py        # сборка тел запросов (кампания, потоки, доли офферов)
-    services/campaigns.py# бизнес-логика создания и редактирования
+      payloads.py        # сборка тел запросов (кампания, потоки, офферы потока)
+    services/
+      campaigns.py       # создание кампании
+      offer_shares.py    # правила редактора: пересчёт долей, сверка с Keitaro
+      stream_editor.py   # черновики потоков, Push to KT, Cancel
     api/routes/          # эндпоинты
     fixtures/            # JSON-фикстуры и CLI загрузки
   alembic/               # миграции
@@ -217,6 +242,6 @@ frontend/
   src/
     api/                 # fetch-клиент
     composables/         # useAsync, useDictionaries, useHealth, useToast
-    components/          # SearchSelect, StreamCard, FlowPreview, …
+    components/          # SearchSelect, OfferStreamCard, FlowPreview, …
     views/               # список, создание, редактор кампании
 ```
