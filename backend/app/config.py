@@ -10,7 +10,11 @@ class Settings(BaseSettings):
 
     app_name: str = "Keitaro Wrapper"
     debug: bool = False
-    database_url: str = "sqlite+aiosqlite:///./keitaro_wrapper.db"
+    database_url: str = "postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper"
+    # отдельная база для pytest; создаётся автоматически, схема пересоздаётся перед каждым тестом
+    test_database_url: str = (
+        "postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper_test"
+    )
     cors_origins: list[str] = ["http://localhost:5173"]
 
     # Подключение к трекеру Keitaro

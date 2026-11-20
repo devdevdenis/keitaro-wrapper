@@ -2,7 +2,7 @@
 
 Обёртка над [Admin API](https://admin-api.docs.keitaro.io/) трекера Keitaro: создание кампаний и редактор офферов в потоках.
 
-**Стек:** FastAPI · SQLAlchemy 2 (async) · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
+**Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
 
 ## Возможности
 
@@ -29,7 +29,7 @@
 
 ## Быстрый старт (локально)
 
-Нужны: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+.
+Нужны: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+, Docker (для PostgreSQL).
 
 > `make` сам ищет `uv` в `~/.local/bin` и `~/.cargo/bin`, поэтому команды работают и в терминале
 > IDE (например, кнопка Run в README в PhpStorm). Чтобы вызывать `uv` напрямую, добавьте его в PATH:
@@ -49,7 +49,13 @@ KEITARO_URL=https://your-tracker.com
 KEITARO_API_KEY=...
 ```
 
-Создать таблицы (по умолчанию SQLite: `backend/keitaro_wrapper.db`):
+Поднять PostgreSQL 17 (контейнер `db` из `docker-compose.yml`, `localhost:5432`, keitaro / keitaro):
+
+```bash
+make db
+```
+
+Создать таблицы:
 
 ```bash
 make migrate
@@ -75,6 +81,10 @@ make frontend
 ```
 
 Без `make` — те же команды вручную:
+
+```bash
+docker compose up -d --wait db
+```
 
 ```bash
 cd backend
@@ -126,7 +136,7 @@ make fixtures-reset
 ```
 
 Загрузка идемпотентна: повторный запуск обновляет записи, а не дублирует их. В тестах справочник
-подключается через pytest-фикстуры из `backend/tests/conftest.py` (БД в памяти).
+подключается через pytest-фикстуры из `backend/tests/conftest.py`.
 
 ## Тесты и линтер
 
@@ -138,14 +148,19 @@ make test
 make lint
 ```
 
-Тесты не обращаются к настоящему трекеру: Keitaro подменяется заглушкой из
+Для тестов нужен запущенный PostgreSQL (`make db`). Они работают в отдельной базе
+`keitaro_wrapper_test` (`TEST_DATABASE_URL`), которая создаётся автоматически; схема
+пересоздаётся перед каждым тестом, основная база не затрагивается.
+
+К настоящему трекеру тесты не обращаются: Keitaro подменяется заглушкой из
 `backend/tests/fake_keitaro.py`.
 
 ## Настройки (`backend/.env`)
 
 | Переменная               | По умолчанию                              | Описание                                   |
 |--------------------------|-------------------------------------------|--------------------------------------------|
-| `DATABASE_URL`           | `sqlite+aiosqlite:///./keitaro_wrapper.db`| Для Postgres: `postgresql+asyncpg://…`     |
+| `DATABASE_URL`           | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper` | Основная база |
+| `TEST_DATABASE_URL`      | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper_test` | База для pytest |
 | `KEITARO_URL`            | —                                         | Адрес трекера                              |
 | `KEITARO_API_KEY`        | —                                         | Admin API key                              |
 | `CAMPAIGN_NAME_PREFIX`   | `test_volper_`                            | Префикс названий кампаний                  |

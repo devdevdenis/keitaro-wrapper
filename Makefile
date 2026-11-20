@@ -2,12 +2,15 @@
 # терминалов IDE (например, Run из README в PhpStorm). Добавляем их явно.
 export PATH := $(HOME)/.local/bin:$(HOME)/.cargo/bin:$(PATH)
 
-.PHONY: install migrate fixtures fixtures-reset backend frontend test lint build up down check-uv
+.PHONY: db install migrate fixtures fixtures-reset backend frontend test lint build up down check-uv
 
 check-uv:
 	@command -v uv >/dev/null 2>&1 || { \
 		echo "uv не найден. Установите: curl -LsSf https://astral.sh/uv/install.sh | sh"; \
 		exit 1; }
+
+db:                 ## PostgreSQL из docker-compose.yml на localhost:5432
+	docker compose up -d --wait db
 
 install: check-uv   ## установить зависимости бэка и фронта
 	cd backend && uv sync
