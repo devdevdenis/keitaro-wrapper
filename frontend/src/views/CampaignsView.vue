@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -9,6 +9,7 @@ import { useAsync } from '@/composables/useAsync'
 import { useDictionaries } from '@/composables/useDictionaries'
 import { flag, formatDate } from '@/utils/format'
 
+const router = useRouter()
 const { load: loadDictionaries, groupsById, sourcesById } = useDictionaries()
 loadDictionaries().catch(() => {})
 
@@ -21,6 +22,20 @@ const campaigns = computed(() => {
   const list = data.value ?? []
   return q ? list.filter((c) => `${c.id} ${c.name} ${c.alias}`.toLowerCase().includes(q)) : list
 })
+
+const editRoute = (campaign) => ({ name: 'campaign-edit', params: { id: campaign.id } })
+
+/** Клик по любому месту строки открывает кампанию; Cmd/Ctrl-клик и колёсико — в новой вкладке. */
+function openCampaign(campaign, event) {
+  if (event.target.closest('a, button')) return // ссылка на названии обработает клик сама
+  if (window.getSelection()?.toString()) return // текст выделяли, а не кликали
+  const route = editRoute(campaign)
+  if (event.metaKey || event.ctrlKey || event.button === 1) {
+    window.open(router.resolve(route).href, '_blank', 'noopener')
+  } else {
+    router.push(route)
+  }
+}
 </script>
 
 <template>
@@ -76,13 +91,16 @@ const campaigns = computed(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="c in campaigns" :key="c.id">
+            <tr
+              v-for="c in campaigns"
+              :key="c.id"
+              class="clickable"
+              @click="openCampaign(c, $event)"
+              @auxclick.middle="openCampaign(c, $event)"
+            >
               <td class="mono faint">#{{ c.id }}</td>
               <td>
-                <RouterLink
-                  :to="{ name: 'campaign-edit', params: { id: c.id } }"
-                  class="campaign-name"
-                >
+                <RouterLink :to="editRoute(c)" class="campaign-name">
                   {{ c.name }}
                 </RouterLink>
                 <div class="row sub">
@@ -116,6 +134,9 @@ const campaigns = computed(() => {
 </template>
 
 <style scoped>
+.clickable {
+  cursor: pointer;
+}
 .toolbar {
   display: flex;
   flex-wrap: wrap;
