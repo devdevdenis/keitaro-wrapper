@@ -5,6 +5,7 @@ import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import OfferStreamCard from '@/components/OfferStreamCard.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import RefreshIcon from '@/components/RefreshIcon.vue'
 import StateBadge from '@/components/StateBadge.vue'
 import { useAsync } from '@/composables/useAsync'
 import { useDictionaries } from '@/composables/useDictionaries'
@@ -104,7 +105,7 @@ async function act(stream, action, ...args) {
             Не опубликовано потоков: {{ draftCount }}
           </span>
           <button class="btn btn-ghost btn-sm" :disabled="loading || !!busy" @click="refresh">
-            <span v-if="loading" class="spinner" /> Обновить
+            <RefreshIcon :spinning="loading" /> Обновить
           </button>
         </template>
       </PageHeader>

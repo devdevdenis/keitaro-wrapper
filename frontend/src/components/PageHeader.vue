@@ -44,6 +44,7 @@ p {
 }
 .actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 </style>

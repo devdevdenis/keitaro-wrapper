@@ -4,6 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import RefreshIcon from '@/components/RefreshIcon.vue'
 import StateBadge from '@/components/StateBadge.vue'
 import { useAsync } from '@/composables/useAsync'
 import { useDictionaries } from '@/composables/useDictionaries'
@@ -53,7 +54,7 @@ function openCampaign(campaign, event) {
         <input v-model="search" class="input search" placeholder="Поиск по ID, названию, alias…" />
         <div class="spacer" />
         <button class="btn btn-ghost btn-sm" :disabled="loading" @click="run().catch(() => {})">
-          <span v-if="loading" class="spinner" /> Обновить
+          <RefreshIcon :spinning="loading" /> Обновить
         </button>
       </div>
 
