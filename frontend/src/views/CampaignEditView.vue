@@ -145,7 +145,7 @@ async function act(stream, action, ...args) {
                   {{ flag(code) }} {{ countriesByCode[code]?.name ?? code }}
                 </li>
               </ul>
-              <span v-else class="faint">— (создана не через обёртку)</span>
+              <span v-else class="faint">— (кампания создана напрямую в Keitaro)</span>
             </dd>
             <dt>Домен</dt>
             <dd>{{ domain?.name ?? '—' }}</dd>

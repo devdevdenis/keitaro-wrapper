@@ -31,7 +31,7 @@ def in_keitaro(keitaro, stream_id: int) -> list[tuple[int, int]]:
 
 
 def set_keitaro_offers(keitaro, stream_id: int, offers: list[tuple[int, int]]) -> None:
-    """Правка потока напрямую в Keitaro, мимо обёртки."""
+    """Правка потока напрямую в Keitaro."""
     keitaro.streams[stream_id]["offers"] = [
         {"id": i, "stream_id": stream_id, "offer_id": oid, "share": share, "state": "active"}
         for i, (oid, share) in enumerate(offers, 1)

@@ -25,7 +25,7 @@ class Country(Base):
 
 
 class Campaign(TimestampMixin, Base):
-    """Локальная запись о кампании, созданной через обёртку."""
+    """Локальная запись о кампании, созданной здесь, а не напрямую в Keitaro."""
 
     __tablename__ = "campaigns"
 

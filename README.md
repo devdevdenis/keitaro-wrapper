@@ -1,6 +1,7 @@
 # Keitaro Wrapper
 
-Обёртка над [Admin API](https://admin-api.docs.keitaro.io/) трекера Keitaro: создание кампаний и редактор офферов в потоках.
+Интерфейс для трекера Keitaro поверх его [Admin API](https://admin-api.docs.keitaro.io/): создание кампаний и
+редактор офферов в потоках.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
 
@@ -11,7 +12,7 @@
 ### 1. Создание кампании
 
 Форма принимает **название**, **гео (одна или несколько стран)** и **ID оффера**, а также
-**домен**, **группу** и **источник трафика** (списки подтягиваются из Keitaro API). Обёртка создаёт
+**домен**, **группу** и **источник трафика** (списки подтягиваются из Keitaro API). Система создаёт
 кампанию с двумя потоками:
 
 | # | Поток      | Тип Keitaro | Схема      | Что делает                                                  |
@@ -191,7 +192,7 @@ make lint
 | `GET`    | `/api/keitaro/groups`                     | Группы кампаний                            |
 | `GET`    | `/api/keitaro/traffic-sources`            | Источники трафика                          |
 | `GET`    | `/api/keitaro/offers`                     | Офферы                                     |
-| `GET`    | `/api/campaigns`                          | Все кампании трекера; `tracked` — созданные через обёртку |
+| `GET`    | `/api/campaigns`                          | Все кампании трекера; `tracked` — созданные здесь, а не в Keitaro |
 | `POST`   | `/api/campaigns`                          | Создать кампанию с двумя потоками          |
 | `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет офферы с Keitaro |
 | `POST`   | `/api/streams/{id}/offers`                | Черновик: добавить оффер (`{"offer_id"}`)  |

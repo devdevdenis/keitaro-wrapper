@@ -156,9 +156,6 @@ function add() {
     </div>
 
     <footer v-if="editor.has_draft" class="stream-footer">
-      <span class="faint footer-hint">
-        Изменения видны только в обёртке — в Keitaro они уйдут по Push to KT
-      </span>
       <div class="footer-actions">
         <button type="button" class="btn btn-ghost" :disabled="disabled" @click="emit('cancel')">
           <span v-if="busy === 'cancel'" class="spinner" /> Cancel
@@ -359,9 +356,6 @@ h3 {
   border-top: 1px solid var(--border);
   background: var(--amber-soft);
   font-size: 13px;
-}
-.footer-hint {
-  flex: 1 1 220px;
 }
 .footer-actions {
   display: flex;

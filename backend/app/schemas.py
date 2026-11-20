@@ -84,7 +84,7 @@ class CampaignRecord(ORMModel):
 
 
 class CampaignSummary(BaseModel):
-    """Кампания из Keitaro + признак, что она создана через обёртку."""
+    """Кампания из Keitaro; tracked — создана здесь, а не напрямую в Keitaro."""
 
     model_config = ConfigDict(extra="ignore")
 

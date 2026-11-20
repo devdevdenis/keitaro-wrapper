@@ -1,7 +1,7 @@
 [project]
 name = "keitaro-wrapper"
 version = "0.1.0"
-description = "Обёртка над Admin API трекера Keitaro"
+description = "Интерфейс для трекера Keitaro поверх его Admin API"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.1",

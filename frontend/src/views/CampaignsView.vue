@@ -105,7 +105,7 @@ function openCampaign(campaign, event) {
                 </RouterLink>
                 <div class="row sub">
                   <span class="chip">{{ c.alias }}</span>
-                  <span v-if="!c.tracked" class="faint" title="Создана не через обёртку">
+                  <span v-if="!c.tracked" class="faint" title="Кампания создана напрямую в Keitaro">
                     внешняя
                   </span>
                 </div>

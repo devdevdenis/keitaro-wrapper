@@ -1,7 +1,7 @@
 import { ref, shallowRef } from 'vue'
 
 /**
- * Обёртка над асинхронной функцией: data / error / loading + run().
+ * Состояние асинхронного вызова: data / error / loading + run().
  * @param {(...args: any[]) => Promise<any>} fn
  * @param {{ immediate?: boolean, initial?: any }} options
  */
