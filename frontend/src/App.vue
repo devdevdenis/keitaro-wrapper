@@ -10,7 +10,6 @@ const connection = computed(() => {
   const mode = health.value?.keitaro
   if (!health.value) return { label: 'Проверка…', tone: 'slate' }
   if (health.value.status === 'down') return { label: 'Бэкенд недоступен', tone: 'red' }
-  if (mode === 'mock') return { label: 'Заглушка Keitaro', tone: 'amber' }
   if (mode === 'live') return { label: 'Keitaro подключён', tone: 'green' }
   return { label: 'Keitaro не настроен', tone: 'red' }
 })

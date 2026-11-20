@@ -1,7 +1,6 @@
 # Keitaro Wrapper
 
-Обёртка над [Admin API](https://admin-api.docs.keitaro.io/) трекера Keitaro: быстрое создание
-тестовых кампаний по шаблону и редактор офферов в потоках.
+Обёртка над [Admin API](https://admin-api.docs.keitaro.io/) трекера Keitaro: создание кампаний и редактор офферов в потоках.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
 
@@ -43,12 +42,9 @@ KEITARO_URL=https://your-tracker.com     # без /admin_api/v1
 KEITARO_API_KEY=...                      # Maintenance → Users → Admin API keys
 ```
 
-> Нет доступа к трекеру? Поставьте `KEITARO_MOCK=true`: API будет работать с in-memory заглушкой,
-> в которой уже есть домены, группы, источники, офферы и две демо-кампании.
-
 ```bash
 make migrate         # создать таблицы (SQLite по умолчанию: backend/keitaro_wrapper.db)
-make fixtures        # справочник стран; make fixtures-demo — ещё и демо-кампании
+make fixtures        # загрузить справочник стран
 make backend         # API: http://localhost:8000, Swagger: http://localhost:8000/docs
 make frontend        # в другом терминале, UI: http://localhost:5173
 ```
@@ -60,7 +56,7 @@ cd backend
 uv sync
 cp .env.example .env
 uv run alembic upgrade head
-uv run python -m app.fixtures --demo
+uv run python -m app.fixtures
 uv run uvicorn app.main:app --reload
 ```
 
@@ -73,32 +69,27 @@ npm run dev          # /api проксируется на http://localhost:8000 
 ## Запуск в Docker
 
 ```bash
-cp backend/.env.example backend/.env    # и заполните KEITARO_* (или KEITARO_MOCK=true)
+cp backend/.env.example backend/.env    # и заполните KEITARO_URL / KEITARO_API_KEY
 docker compose up --build
 ```
 
 - UI — http://localhost:8080 (nginx отдаёт статику и проксирует `/api` в бэкенд)
 - API — http://localhost:8000/docs
-- БД — PostgreSQL 17. Миграции и фикстура стран применяются при старте контейнера.
-  Демо-кампании: `docker compose exec backend python -m app.fixtures --demo`.
+- БД — PostgreSQL 17 на `localhost:5432` (keitaro / keitaro). Миграции и фикстура стран
+  применяются при старте контейнера.
 
 ## Фикстуры БД
 
-Лежат в `backend/app/fixtures/data/`:
-
-| Файл                  | Таблица     | Описание                                                   |
-|-----------------------|-------------|------------------------------------------------------------|
-| `countries.json`      | `countries` | 249 стран ISO 3166-1 alpha-2, источник для выбора гео        |
-| `demo_campaigns.json` | `campaigns` | 2 демо-кампании `test_volper_*` (совпадают с mock-трекером) |
+`backend/app/fixtures/data/countries.json` → таблица `countries`: 249 стран ISO 3166-1 alpha-2,
+из них выбирается гео при создании кампании.
 
 ```bash
-uv run python -m app.fixtures            # только страны
-uv run python -m app.fixtures --demo     # + демо-кампании
+uv run python -m app.fixtures            # загрузить справочник стран
 uv run python -m app.fixtures --reset    # очистить таблицы и загрузить заново
 ```
 
-Загрузка идемпотентна: повторный запуск обновляет записи, а не дублирует их. В тестах те же
-фикстуры подключаются через pytest-фикстуры из `backend/tests/conftest.py` (БД в памяти + заглушка Keitaro).
+Загрузка идемпотентна: повторный запуск обновляет записи, а не дублирует их. В тестах справочник
+подключается через pytest-фикстуры из `backend/tests/conftest.py` (БД в памяти).
 
 ## Тесты и линтер
 
@@ -107,6 +98,9 @@ make test            # pytest
 make lint            # ruff
 ```
 
+Тесты не обращаются к настоящему трекеру: Keitaro подменяется заглушкой из
+`backend/tests/fake_keitaro.py`.
+
 ## Настройки (`backend/.env`)
 
 | Переменная               | По умолчанию                              | Описание                                   |
@@ -114,7 +108,6 @@ make lint            # ruff
 | `DATABASE_URL`           | `sqlite+aiosqlite:///./keitaro_wrapper.db`| Для Postgres: `postgresql+asyncpg://…`     |
 | `KEITARO_URL`            | —                                         | Адрес трекера                              |
 | `KEITARO_API_KEY`        | —                                         | Admin API key                              |
-| `KEITARO_MOCK`           | `false`                                   | Работать с заглушкой вместо трекера        |
 | `CAMPAIGN_NAME_PREFIX`   | `test_volper_`                            | Префикс названий кампаний                  |
 | `GOOGLE_REDIRECT_URL`    | `https://www.google.com`                  | Куда уводит поток №1                       |
 | `STREAM_REDIRECT_ACTION` | `http`                                    | Тип редиректа потока (`action_type`)       |
@@ -158,12 +151,11 @@ backend/
     keitaro/
       client.py          # httpx-клиент Admin API v1
       payloads.py        # сборка тел запросов (кампания, потоки, доли офферов)
-      fake.py            # in-memory заглушка (KEITARO_MOCK=true, тесты)
     services/campaigns.py# бизнес-логика создания и редактирования
     api/routes/          # эндпоинты
     fixtures/            # JSON-фикстуры и CLI загрузки
   alembic/               # миграции
-  tests/                 # pytest
+  tests/                 # pytest + заглушка Keitaro для тестов
 frontend/
   src/
     api/                 # fetch-клиент

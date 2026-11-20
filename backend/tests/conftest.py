@@ -10,8 +10,8 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_keitaro
 from app.db import Base, get_session
 from app.fixtures import load_countries
-from app.keitaro import FakeKeitaroClient
 from app.main import app
+from tests.fake_keitaro import FakeKeitaroClient
 
 
 @pytest.fixture

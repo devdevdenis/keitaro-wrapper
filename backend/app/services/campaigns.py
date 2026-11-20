@@ -64,25 +64,19 @@ async def create_campaign(
             await keitaro.delete_campaign(campaign_id)
         raise
 
-    fields = {
-        "alias": campaign["alias"],
-        "name": campaign["name"],
-        "country_code": data.country_code,
-        "offer_id": data.offer_id,
-        "domain_id": data.domain_id,
-        "group_id": data.group_id,
-        "traffic_source_id": data.traffic_source_id,
-        "google_stream_id": google_stream.get("id"),
-        "offer_stream_id": offer_stream.get("id"),
-    }
-    # upsert: в mock-режиме заглушка после рестарта снова выдаёт те же id
-    record = await get_record(session, campaign_id)
-    if record is None:
-        record = Campaign(keitaro_id=campaign_id, **fields)
-        session.add(record)
-    else:
-        for key, value in fields.items():
-            setattr(record, key, value)
+    record = Campaign(
+        keitaro_id=campaign_id,
+        alias=campaign["alias"],
+        name=campaign["name"],
+        country_code=data.country_code,
+        offer_id=data.offer_id,
+        domain_id=data.domain_id,
+        group_id=data.group_id,
+        traffic_source_id=data.traffic_source_id,
+        google_stream_id=google_stream.get("id"),
+        offer_stream_id=offer_stream.get("id"),
+    )
+    session.add(record)
     await session.commit()
     await session.refresh(record)
     return record, [google_stream, offer_stream]

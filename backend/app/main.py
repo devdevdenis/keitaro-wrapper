@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.keitaro = await build_keitaro_client(get_settings())
+    app.state.keitaro = build_keitaro_client(get_settings())
     yield
     if app.state.keitaro is not None:
         await app.state.keitaro.aclose()

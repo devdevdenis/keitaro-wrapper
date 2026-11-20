@@ -14,7 +14,7 @@ JSON = dict[str, Any]
 
 
 class KeitaroAPI(Protocol):
-    """Интерфейс, который реализуют настоящий клиент и заглушка (FakeKeitaroClient)."""
+    """Интерфейс клиента Keitaro (в тестах его реализует заглушка из tests/fake_keitaro.py)."""
 
     async def list_domains(self) -> list[JSON]: ...
     async def list_groups(self, group_type: str = "campaigns") -> list[JSON]: ...

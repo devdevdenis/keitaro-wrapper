@@ -1,8 +1,4 @@
-"""In-memory заглушка Keitaro.
-
-Включается через KEITARO_MOCK=true — позволяет разрабатывать фронт и бэк без доступа
-к трекеру. Также используется в тестах. Состояние живёт, пока жив процесс.
-"""
+"""In-memory заглушка Keitaro для тестов (реализует протокол KeitaroAPI)."""
 
 import copy
 from datetime import UTC, datetime
@@ -45,31 +41,6 @@ class FakeKeitaroClient:
 
     async def aclose(self) -> None:
         return None
-
-    async def seed_demo(self, rows: list[JSON], settings) -> None:
-        """Создаёт кампании, соответствующие фикстуре demo_campaigns.json."""
-        from app.keitaro import payloads as p
-
-        for row in rows:
-            campaign = await self.create_campaign(
-                p.campaign_payload(
-                    name=row["name"],
-                    alias=row["alias"],
-                    domain_id=row["domain_id"],
-                    group_id=row["group_id"],
-                    traffic_source_id=row["traffic_source_id"],
-                )
-            )
-            await self.create_stream(
-                p.google_stream_payload(
-                    campaign_id=campaign["id"], country_code=row["country_code"], settings=settings
-                )
-            )
-            await self.create_stream(
-                p.offer_stream_payload(
-                    campaign_id=campaign["id"], offer_id=row["offer_id"], settings=settings
-                )
-            )
 
     # --- справочники -------------------------------------------------------
 

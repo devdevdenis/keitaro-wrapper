@@ -1,4 +1,4 @@
-.PHONY: install migrate fixtures fixtures-demo backend frontend test lint build up down
+.PHONY: install migrate fixtures backend frontend test lint build up down
 
 install:            ## установить зависимости бэка и фронта
 	cd backend && uv sync
@@ -10,9 +10,6 @@ migrate:            ## применить миграции
 
 fixtures:           ## загрузить справочник стран
 	cd backend && uv run python -m app.fixtures
-
-fixtures-demo:      ## страны + демо-кампании
-	cd backend && uv run python -m app.fixtures --demo
 
 backend:            ## API на http://localhost:8000 (Swagger: /docs)
 	cd backend && uv run uvicorn app.main:app --reload --port 8000

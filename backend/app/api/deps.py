@@ -11,10 +11,7 @@ from app.keitaro import KeitaroAPI, KeitaroNotConfigured
 def get_keitaro(request: Request) -> KeitaroAPI:
     client: KeitaroAPI | None = getattr(request.app.state, "keitaro", None)
     if client is None:
-        raise KeitaroNotConfigured(
-            "Keitaro не настроен: задайте KEITARO_URL и KEITARO_API_KEY "
-            "(или KEITARO_MOCK=true для работы с заглушкой)"
-        )
+        raise KeitaroNotConfigured("Keitaro не настроен: задайте KEITARO_URL и KEITARO_API_KEY")
     return client
 
 

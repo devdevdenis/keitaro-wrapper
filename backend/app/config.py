@@ -17,8 +17,6 @@ class Settings(BaseSettings):
     keitaro_url: str = ""  # например https://tracker.example.com (без /admin_api/v1)
     keitaro_api_key: str = ""
     keitaro_timeout: float = 15.0
-    # true — вместо настоящего Keitaro используется in-memory заглушка (для разработки без трекера)
-    keitaro_mock: bool = False
 
     # Правила создания кампаний
     campaign_name_prefix: str = "test_volper_"

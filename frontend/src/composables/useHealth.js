@@ -4,7 +4,7 @@ import { api } from '@/api'
 const health = ref(null)
 let started = false
 
-/** Состояние бэкенда и подключения к Keitaro (mock / live / not_configured). */
+/** Состояние бэкенда и подключения к Keitaro (live / not_configured). */
 export function useHealth() {
   async function refresh() {
     try {
