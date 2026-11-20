@@ -174,8 +174,8 @@ function add() {
 </template>
 
 <style scoped>
+/* без overflow: hidden — иначе выпадающий список поиска оффера обрезается краем карточки */
 .stream {
-  overflow: hidden;
   border-left: 3px solid var(--teal);
   transition:
     border-color 0.15s,
@@ -354,6 +354,7 @@ h3 {
   gap: 8px;
   padding: 12px 20px;
   border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--amber-soft);
   font-size: 13px;
 }
