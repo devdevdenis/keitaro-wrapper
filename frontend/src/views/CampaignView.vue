@@ -232,8 +232,26 @@ async function pushAll() {
   }
 }
 
+/** Cancel: потоки возвращаются к состоянию из Keitaro, неопубликованные офферы исчезают */
+const cancelling = ref(false)
+async function cancelAll() {
+  cancelling.value = true
+  try {
+    setStreams(await api.cancelCampaign(props.id))
+    toast.success('Неопубликованные изменения отменены')
+  } catch (e) {
+    toast.error(e.message)
+  } finally {
+    cancelling.value = false
+  }
+}
+
 const busyFor = (stream) =>
-  pushing.value ? 'push' : busy.value?.streamId === stream.id ? busy.value.action : null
+  pushing.value || cancelling.value
+    ? 'push'
+    : busy.value?.streamId === stream.id
+      ? busy.value.action
+      : null
 </script>
 
 <template>
@@ -432,8 +450,16 @@ const busyFor = (stream) =>
               </span>
               <button
                 type="button"
+                class="btn btn-ghost btn-sm"
+                :disabled="pushing || cancelling || !!busy"
+                @click="cancelAll"
+              >
+                <span v-if="cancelling" class="spinner" /> Cancel
+              </button>
+              <button
+                type="button"
                 class="btn btn-primary btn-sm"
-                :disabled="pushing || !!busy || blockers.length > 0"
+                :disabled="pushing || cancelling || !!busy || blockers.length > 0"
                 @click="pushAll"
               >
                 <span v-if="pushing" class="spinner" /> Push to KT

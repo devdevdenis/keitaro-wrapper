@@ -518,3 +518,21 @@ async def test_push_campaign_stops_on_keitaro_error(client, keitaro, campaign, i
 async def test_push_campaign_without_drafts(client, keitaro, campaign, intercept, regular):
     response = await client.post(f"/api/campaigns/{campaign['id']}/push")
     assert response.status_code == 409
+
+
+async def test_cancel_campaign_discards_all_changes(client, keitaro, campaign, intercept, regular):
+    await client.post(f"/api/streams/{regular['id']}/offers", json={"offer_id": 102})
+    await client.delete(f"/api/streams/{regular['id']}/offers/101")
+    await client.patch(f"/api/streams/{intercept['id']}", json={"name": "Renamed"})
+    added = await new_stream(client, campaign)  # в Keitaro его ещё нет
+
+    response = await client.delete(f"/api/campaigns/{campaign['id']}/drafts")
+    assert response.status_code == 200, response.text
+    streams = response.json()
+    assert [(s["name"], s["has_draft"]) for s in streams] == [
+        ("Flow 1", False),
+        ("Flow 2", False),
+    ]
+    assert rows(streams[1]) == [(101, 100, "active")]  # 102 исчез, 101 вернулся
+    assert added["id"] not in [s["id"] for s in streams]
+    assert in_keitaro(keitaro, regular["keitaro_id"]) == [(101, 100)]  # Keitaro не трогали

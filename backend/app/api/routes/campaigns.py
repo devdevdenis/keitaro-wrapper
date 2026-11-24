@@ -112,3 +112,9 @@ async def push_campaign(
         error=result.error,
         streams=[editor.view(s) for s in await editor.campaign_streams(session, campaign_id)],
     )
+
+
+@router.delete("/campaigns/{campaign_id}/drafts", response_model=list[StreamOut])
+async def cancel_campaign(campaign_id: int, session: SessionDep):
+    """Cancel: отбросить все неопубликованные изменения потоков кампании."""
+    return [editor.view(s) for s in await editor.cancel_campaign(session, campaign_id)]

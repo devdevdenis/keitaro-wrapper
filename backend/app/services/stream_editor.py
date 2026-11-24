@@ -253,6 +253,22 @@ async def pin_offer(
     )
 
 
+async def cancel_campaign(session: AsyncSession, campaign_id: int) -> list[StreamState]:
+    """Cancel для всей кампании: отбрасывает все неопубликованные изменения потоков.
+
+    Потоки возвращаются к состоянию из Keitaro (добавленные офферы исчезают, удалённые
+    возвращаются); потоки, которых в Keitaro ещё нет, удаляются.
+    """
+    for state in await _locked_campaign_streams(session, campaign_id):
+        if state.keitaro_id is None:
+            await session.delete(state)
+        elif state.draft is not None:
+            state.draft = None
+            state.draft_base = None
+    await session.commit()
+    return await campaign_streams(session, campaign_id)
+
+
 async def cancel(session: AsyncSession, state_id: int) -> StreamState:
     """Отбрасывает черновик. saved уже сверены с Keitaro при последнем открытии/публикации."""
     state = await _locked_state(session, state_id)

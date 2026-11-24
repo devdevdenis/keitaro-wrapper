@@ -33,6 +33,8 @@ export const api = {
     http.put(`/streams/${streamId}/offers/${offerId}/pin`, { pinned }),
   // Push to KT — черновики всех потоков кампании одной пачкой
   pushCampaign: (campaignId) => http.post(`/campaigns/${campaignId}/push`),
+  // Cancel — отбросить все неопубликованные изменения потоков кампании
+  cancelCampaign: (campaignId) => http.delete(`/campaigns/${campaignId}/drafts`),
   cancelStreamDraft: (streamId) => http.delete(`/streams/${streamId}/draft`),
 }
 
