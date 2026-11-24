@@ -3,12 +3,11 @@
  * Кампания: параметры сверху, потоки снизу. id = null — создание новой кампании.
  * Параметры сохраняются сразу в Keitaro; правки потоков копятся в черновиках и уходят по Push to KT.
  */
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
-import InterceptFields from '@/components/InterceptFields.vue'
 import OfferTable from '@/components/OfferTable.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import RefreshIcon from '@/components/RefreshIcon.vue'
@@ -141,10 +140,14 @@ const previewStreams = computed(() => [
 ])
 
 const streams = computed(() => campaign.value?.streams ?? [])
+/** В списке сначала потоки с офферами — их и правят; перехватывающие и прочие — внизу */
+const listedStreams = computed(() => [
+  ...streams.value.filter((s) => s.kind === 'regular'),
+  ...streams.value.filter((s) => s.kind !== 'regular'),
+])
 
 /** { streamId, action } — что сейчас выполняется; остальные действия потока заблокированы */
 const busy = ref(null)
-const adding = ref(false)
 
 const ACTIONS = {
   patch: (id, patch) => api.updateStream(id, patch),
@@ -169,21 +172,6 @@ async function act(stream, action, ...args) {
     toast.error(e.message)
   } finally {
     busy.value = null
-  }
-}
-
-/** Новый поток — внизу списка; тип выбирается в самой карточке */
-async function addStream() {
-  adding.value = true
-  try {
-    const stream = await api.addStream(props.id)
-    setStreams([...streams.value, stream])
-    await nextTick()
-    showStream(stream.id)
-  } catch (e) {
-    toast.error(e.message)
-  } finally {
-    adding.value = false
   }
 }
 
@@ -462,24 +450,18 @@ const busyFor = (stream) =>
 
             <div v-else class="streams">
                 <StreamCard
-                  v-for="stream in streams"
+                  v-for="stream in listedStreams"
                   :id="`stream-${stream.id}`"
                   :key="stream.id"
                   :stream="stream"
                   :busy="busyFor(stream)"
                   @patch="(patch) => act(stream, 'patch', patch)"
-                      @cancel="act(stream, 'cancel')"
+                  @cancel="act(stream, 'cancel')"
                   @delete="streamToDelete = stream"
                 >
-                  <InterceptFields
-                    v-if="stream.kind === 'intercept'"
-                    :stream="stream"
-                    :country-options="countryOptions"
-                    :busy="busyFor(stream)"
-                    @patch="(patch) => act(stream, 'patch', patch)"
-                  />
+                  <!-- содержимое — только у потоков с офферами; остальные показываются заголовком -->
                   <OfferTable
-                    v-else-if="stream.kind === 'regular'"
+                    v-if="stream.kind === 'regular'"
                     :offers="stream.offers"
                     :offers-by-id="offersById"
                     :offer-options="offerOptions"
@@ -487,21 +469,12 @@ const busyFor = (stream) =>
                     @add="(offerId) => act(stream, 'add', offerId)"
                     @remove="(offerId) => act(stream, 'remove', offerId)"
                     @restore="(offerId) => act(stream, 'restore', offerId)"
-                @forget="(offerId) => act(stream, 'forget', offerId)"
+                    @forget="(offerId) => act(stream, 'forget', offerId)"
                     @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
                   />
-                  <p v-else class="other muted">
-                    Этот поток редактор не разбирает — его настройки меняются в Keitaro.
-                  </p>
                 </StreamCard>
 
               <p v-if="!streams.length" class="placeholder muted">У кампании пока нет потоков.</p>
-
-              <button type="button" class="add-stream" :disabled="adding" @click="addStream">
-                <span v-if="adding" class="spinner" />
-                <span v-else class="plus" aria-hidden="true" />
-                Добавить поток
-              </button>
             </div>
           </div>
         </section>
@@ -679,10 +652,6 @@ h2 {
   padding: 18px 8px;
   text-align: center;
 }
-.other {
-  margin: 0;
-  padding: 14px 20px 16px;
-}
 /* неопубликованные изменения — рамкой всего раздела, а не каждой карточкой */
 .streams-card {
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -732,50 +701,6 @@ h2 {
   font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
-}
-/* «полоса с плюсиком» под последним потоком */
-.add-stream {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  height: 46px;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--text-2);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
-}
-.add-stream:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.add-stream:disabled {
-  cursor: progress;
-  opacity: 0.7;
-}
-.plus {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: currentColor;
-  color: inherit;
-  font-size: 16px;
-  line-height: 1;
-}
-.plus::before {
-  content: '+';
-  color: var(--surface);
 }
 @media (max-width: 1599px) {
   .page-grid {

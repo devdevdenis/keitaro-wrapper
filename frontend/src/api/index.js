@@ -19,8 +19,6 @@ export const api = {
 
   // потоки: правки копятся в черновике, в Keitaro — по pushStream.
   // streamId — id потока в нашей БД (у нового потока в Keitaro id ещё нет)
-  // новый поток Flow N — по умолчанию обычный, тип выбирается в самом потоке
-  addStream: (campaignId) => http.post(`/campaigns/${campaignId}/streams`),
   updateStream: (streamId, patch) => http.patch(`/streams/${streamId}`, patch),
   deleteStream: (streamId) => http.delete(`/streams/${streamId}`),
   addStreamOffer: (streamId, offerId) =>

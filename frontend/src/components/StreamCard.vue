@@ -1,6 +1,7 @@
 <script setup>
 /**
  * Карточка потока в редакторе: название, тип, удаление; при конфликте с Keitaro — сброс правок.
+ * Содержимое (таблица офферов) есть только у обычного потока.
  * Неопубликованные изменения показывает раздел «Потоки» целиком, а не каждая карточка.
  * Содержимое (поля перехватывающего потока или таблица офферов) — в слоте.
  */
@@ -14,13 +15,9 @@ const props = defineProps({
 })
 const emit = defineEmits(['patch', 'cancel', 'delete'])
 
-const KINDS = [
-  { value: 'intercept', label: 'Перехватывающий' },
-  { value: 'regular', label: 'Обычный' },
-]
-
 const disabled = computed(() => Boolean(props.busy))
-const editable = computed(() => props.stream.kind !== 'other')
+// правится только поток с офферами; перехватывающие и прочие можно лишь удалить
+const editable = computed(() => props.stream.kind === 'regular')
 const typeMeta = computed(
   () => STREAM_TYPES[props.stream.type] ?? { label: props.stream.type ?? '—', tone: 'slate' },
 )
@@ -54,23 +51,7 @@ function saveName() {
         />
         <h3 v-else>{{ stream.name || 'Без названия' }}</h3>
         <div class="row meta">
-          <!-- тип выбирается только у неопубликованного потока -->
-          <div v-if="stream.is_new" class="kind-switch" role="radiogroup" aria-label="Тип потока">
-            <button
-              v-for="option in KINDS"
-              :key="option.value"
-              type="button"
-              role="radio"
-              class="kind-option"
-              :class="[`kind-option-${option.value}`, { active: stream.kind === option.value }]"
-              :aria-checked="stream.kind === option.value"
-              :disabled="disabled"
-              @click="stream.kind !== option.value && emit('patch', { kind: option.value })"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-          <span v-else class="badge" :class="`tone-${typeMeta.tone}`">{{ typeMeta.label }}</span>
+          <span class="badge" :class="`tone-${typeMeta.tone}`">{{ typeMeta.label }}</span>
           <span v-if="stream.keitaro_id" class="chip">id: {{ stream.keitaro_id }}</span>
         </div>
       </div>
@@ -88,7 +69,8 @@ function saveName() {
       </button>
     </header>
 
-    <div class="stream-content">
+    <!-- у перехватывающих и прочих потоков — только заголовок, без лишних данных -->
+    <div v-if="stream.kind === 'regular'" class="stream-content">
       <slot />
     </div>
 
@@ -170,39 +152,6 @@ h3 {
 .meta {
   flex-wrap: wrap;
   gap: 6px;
-}
-.kind-switch {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-}
-.kind-option {
-  height: 22px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-2);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.kind-option:hover:not(:disabled):not(.active) {
-  color: var(--text);
-}
-.kind-option-intercept.active {
-  background: var(--blue-soft);
-  color: var(--blue);
-}
-.kind-option-regular.active {
-  background: var(--teal-soft);
-  color: var(--teal);
-}
-.kind-option:disabled {
-  cursor: not-allowed;
 }
 .icon-btn {
   width: 30px;
