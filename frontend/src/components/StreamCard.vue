@@ -124,6 +124,7 @@ function saveName() {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  align-self: center;
   width: 30px;
   height: 30px;
   border-radius: 8px;

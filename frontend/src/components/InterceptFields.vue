@@ -1,6 +1,7 @@
 <script setup>
 /**
- * Настройки перехватывающего потока: страны, логика фильтров (ИЛИ / И) и адрес редиректа.
+ * Настройки перехватывающего потока: страны и адрес редиректа (логика фильтров — всегда «ИЛИ»
+ * для новых потоков, у существующих остаётся как в Keitaro).
  * Каждое изменение уходит в черновик потока; в Keitaro — по Push to KT.
  */
 import { computed, ref, watch } from 'vue'
@@ -40,7 +41,7 @@ function saveRedirect() {
 
 <template>
   <div class="intercept-fields">
-    <div class="field wide">
+    <div class="field">
       <label class="field-label" :for="fieldId('countries')">Страны</label>
       <SearchSelect
         :id="fieldId('countries')"
@@ -52,20 +53,6 @@ function saveRedirect() {
         @update:model-value="saveCountries"
       />
       <span class="field-hint">Трафик из этих стран поток перехватывает и уводит на редирект</span>
-    </div>
-
-    <div class="field">
-      <label class="field-label" :for="fieldId('logic')">Логика фильтров</label>
-      <select
-        :id="fieldId('logic')"
-        class="input"
-        :value="stream.filter_or ? 'or' : 'and'"
-        :disabled="disabled"
-        @change="emit('patch', { filter_or: $event.target.value === 'or' })"
-      >
-        <option value="or">ИЛИ — любое условие</option>
-        <option value="and">И — все условия</option>
-      </select>
     </div>
 
     <div class="field">
@@ -86,22 +73,10 @@ function saveRedirect() {
 
 <style scoped>
 /* класс не .fields: стили родительской страницы попадают на корневой элемент компонента */
-/* страны — на всю ширину; ниже логика (узкая) и редирект */
 .intercept-fields {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   padding: 16px 20px 18px;
-}
-.wide {
-  grid-column: 1 / -1;
-}
-@media (max-width: 860px) {
-  .intercept-fields {
-    grid-template-columns: 1fr;
-  }
-  .wide {
-    grid-column: auto;
-  }
 }
 </style>

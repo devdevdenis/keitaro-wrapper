@@ -21,7 +21,7 @@ import { useDeleteCampaign } from '@/composables/useDeleteCampaign'
 import { useDictionaries } from '@/composables/useDictionaries'
 import { useHealth } from '@/composables/useHealth'
 import { useToast } from '@/composables/useToast'
-import { flag, formatDate } from '@/utils/format'
+import { flag, formatDateShort } from '@/utils/format'
 
 const props = defineProps({ id: { type: Number, default: null } })
 const isNew = computed(() => props.id == null)
@@ -234,6 +234,9 @@ const busyFor = (stream) =>
         <template #eyebrow>
           <RouterLink :to="{ name: 'campaigns' }" class="back">← Кампании</RouterLink>
         </template>
+        <template v-if="!isNew" #title-extra>
+          <span class="created faint" title="Создана">{{ formatDateShort(campaign.created_at) }}</span>
+        </template>
         <template v-if="!isNew" #subtitle>
           <span class="row wrap">
             <StateBadge :state="campaign.state" />
@@ -252,7 +255,6 @@ const busyFor = (stream) =>
                 <path d="M11 4h5v5M16 4l-7 7M14 11.5V15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3.5" />
               </svg>
             </a>
-            <span class="faint">создана {{ formatDate(campaign.created_at) }}</span>
           </span>
         </template>
         <template v-if="!isNew" #actions>
@@ -503,6 +505,11 @@ const busyFor = (stream) =>
   flex-wrap: wrap;
   gap: 8px;
 }
+.created {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .kt-link {
   display: inline-grid;
   place-items: center;
@@ -714,10 +721,11 @@ h2 {
   .page-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
-    grid-template-areas: 'params' 'overview' 'streams';
+    grid-template-areas: 'params' 'streams';
   }
-  .overview {
-    position: static;
+  /* в одну колонку схема не помещается рядом с потоками и только удлиняет страницу */
+  .overview-col {
+    display: none;
   }
 }
 </style>

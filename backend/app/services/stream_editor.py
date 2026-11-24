@@ -104,7 +104,6 @@ def view(state: StreamState) -> StreamOut:
         position=state.position,
         name=shown.name,
         countries=list(shown.countries),
-        filter_or=shown.filter_or,
         redirect_url=shown.redirect_url,
         offers=[
             EditorOfferOut(
@@ -181,8 +180,8 @@ async def update_fields(
         raise ServiceError(
             "Тип опубликованного потока не меняется: удалите поток и добавьте новый нужного типа"
         )
-    if kind != "intercept" and changes.keys() & {"countries", "filter_or", "redirect_url"}:
-        raise ServiceError("Страны, логику фильтров и редирект задают у перехватывающего потока")
+    if kind != "intercept" and changes.keys() & {"countries", "redirect_url"}:
+        raise ServiceError("Страны и редирект задают у перехватывающего потока")
     if "countries" in changes:
         await _ensure_countries_known(session, changes["countries"])
         changes["countries"] = tuple(changes["countries"])

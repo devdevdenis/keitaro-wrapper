@@ -32,7 +32,9 @@ class StreamSpec:
     kind: Kind
     type: str | None = None  # тип потока в Keitaro (forced / regular / default) — только чтение
     countries: tuple[str, ...] = ()
-    filter_or: bool = True  # логика между фильтрами: True — ИЛИ, False — И
+    # логика между фильтрами в Keitaro: True — ИЛИ, False — И. В редакторе не меняется:
+    # новые потоки создаются с «ИЛИ», у существующих остаётся как в Keitaro
+    filter_or: bool = True
     redirect_url: str = ""
     offers: tuple[Offer, ...] = field(default_factory=tuple)
 
@@ -170,11 +172,11 @@ def to_keitaro(spec: StreamSpec, current: JSON | None, settings: Settings) -> JS
             "mode": "accept",
             "payload": list(spec.countries),
         }
-        data.update(
-            filter_or=spec.filter_or,
-            filters=[*others, country],
-            action_payload=spec.redirect_url.strip(),
-        )
+        data.update(filters=[*others, country], action_payload=spec.redirect_url.strip())
+        if current is None:
+            # редактор задаёт только страны — новому потоку ставим логику «ИЛИ»; у существующего
+            # логику не трогаем: с другими фильтрами из Keitaro она может быть и «И»
+            data["filter_or"] = True
     elif spec.kind == "regular":
         shares = [(o.offer_id, o.share) for o in spec.offers if not o.removed]
         data["offers"] = p.stream_offers_payload(shares, (current or {}).get("offers") or [])

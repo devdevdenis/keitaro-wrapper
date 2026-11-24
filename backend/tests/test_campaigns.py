@@ -34,7 +34,6 @@ async def test_new_campaign_gets_two_stream_templates(client, campaign_form):
         "forced",
     )
     assert intercept["redirect_url"] == "https://www.google.com"
-    assert intercept["filter_or"] is True  # по умолчанию «ИЛИ»
     assert intercept["countries"] == []
     assert (regular["name"], regular["kind"], regular["offers"]) == ("Flow 2", "regular", [])
     for stream in (intercept, regular):

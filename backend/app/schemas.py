@@ -114,7 +114,6 @@ class StreamPatch(BaseModel):
     name: str | None = Field(default=None, max_length=100)
     kind: Literal["intercept", "regular"] | None = None  # только у неопубликованного потока
     countries: list[str] | None = None
-    filter_or: bool | None = None
     redirect_url: str | None = Field(default=None, max_length=2000)
 
     @field_validator("countries")
@@ -152,7 +151,6 @@ class StreamOut(BaseModel):
     position: int
     name: str
     countries: list[str]
-    filter_or: bool
     redirect_url: str
     offers: list[EditorOfferOut]
     is_new: bool  # шаблон: в Keitaro потока ещё нет

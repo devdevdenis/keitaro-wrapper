@@ -11,6 +11,20 @@ export function formatDate(value) {
   return date.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** '24.11.2026, 15:33' */
+export function formatDateShort(value) {
+  if (!value) return '—'
+  const date = new Date(value.includes('T') ? value : value.replace(' ', 'T') + 'Z')
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export const STREAM_TYPES = {
   forced: { label: 'Перехватывающий', tone: 'blue' },
   regular: { label: 'Обычный', tone: 'teal' },

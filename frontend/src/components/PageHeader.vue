@@ -9,7 +9,10 @@ defineProps({
   <header class="page-header">
     <div class="titles">
       <slot name="eyebrow" />
-      <h1>{{ title }}</h1>
+      <div class="title-row">
+        <h1>{{ title }}</h1>
+        <slot name="title-extra" />
+      </div>
       <p v-if="subtitle || $slots.subtitle" class="muted">
         <slot name="subtitle">{{ subtitle }}</slot>
       </p>
@@ -34,6 +37,12 @@ defineProps({
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
 }
 h1 {
   font-size: 24px;

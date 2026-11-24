@@ -68,9 +68,6 @@ const offerName = (id) => props.offersById[id]?.name ?? `Оффер #${id}`
               <span class="flags">{{ stream.countries.map(flag).join(' ') }}</span>
             </template>
             <span v-else class="warn">страны не выбраны</span>
-            <span class="chip logic" title="Логика фильтров потока">
-              логика: {{ stream.filter_or ? 'ИЛИ' : 'И' }}
-            </span>
           </span>
           <span class="line">
             <span class="arrow">→</span>
@@ -192,9 +189,6 @@ const offerName = (id) => props.offersById[id]?.name ?? `Оффер #${id}`
 .share {
   color: var(--text-3);
   font-size: 12px;
-}
-.logic {
-  margin-left: auto;
 }
 .warn {
   color: var(--amber);

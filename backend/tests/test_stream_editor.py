@@ -86,14 +86,22 @@ async def test_intercept_template_is_published_on_push(client, keitaro, campaign
     ]
 
 
-async def test_filter_logic_can_be_and(client, keitaro, campaign):
-    stream = await stream_named(client, campaign, "Flow 1")
-    await client.patch(f"/api/streams/{stream['id']}", json={"countries": ["DE"]})
-    edited = (await client.patch(f"/api/streams/{stream['id']}", json={"filter_or": False})).json()
-    assert edited["filter_or"] is False
+async def test_filter_logic_is_or_for_new_and_kept_for_existing(
+    client, keitaro, campaign, intercept
+):
+    kid = intercept["keitaro_id"]
+    assert keitaro.streams[kid]["filter_or"] is True  # новый поток — «ИЛИ»
 
-    pushed = (await client.post(f"/api/streams/{stream['id']}/push")).json()
-    assert keitaro.streams[pushed["keitaro_id"]]["filter_or"] is False
+    # в Keitaro логику поменяли на «И» — редактор её не трогает
+    keitaro.streams[kid]["filter_or"] = False
+    await open_editor(client, campaign)
+    await client.patch(f"/api/streams/{intercept['id']}", json={"countries": ["FR"]})
+    await client.post(f"/api/streams/{intercept['id']}/push")
+    assert keitaro.streams[kid]["filter_or"] is False
+    assert keitaro.streams[kid]["filters"][-1]["payload"] == ["FR"]
+
+    ignored = await client.patch(f"/api/streams/{intercept['id']}", json={"filter_or": True})
+    assert "filter_or" not in ignored.json()
 
 
 async def test_intercept_needs_valid_redirect(client, campaign):
