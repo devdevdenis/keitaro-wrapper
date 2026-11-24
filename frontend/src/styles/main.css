@@ -21,6 +21,8 @@
   --green-soft: #e8f6ec;
   --red: #b91c1c;
   --red-soft: #fdecec;
+  --blue: #1d4ed8;
+  --blue-soft: #e8effd;
   --slate: #5b6370;
   --slate-soft: #eef0f3;
 
@@ -64,6 +66,8 @@
     --green-soft: #0f2c1a;
     --red: #f87171;
     --red-soft: #3a1717;
+    --blue: #8ab4ff;
+    --blue-soft: #16223a;
     --slate: #a3aab5;
     --slate-soft: #222831;
 
@@ -300,6 +304,10 @@ select.input {
 .tone-teal {
   background: var(--teal-soft);
   color: var(--teal);
+}
+.tone-blue {
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 .tone-red {
   background: var(--red-soft);

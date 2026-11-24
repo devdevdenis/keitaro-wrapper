@@ -137,7 +137,7 @@ const offerName = (id) => props.offersById[id]?.name ?? `Оффер #${id}`
   background: var(--surface-2);
 }
 .kind-intercept {
-  border-left-color: var(--amber);
+  border-left-color: var(--blue);
 }
 .kind-regular {
   border-left-color: var(--teal);

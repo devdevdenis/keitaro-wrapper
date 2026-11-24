@@ -1,6 +1,7 @@
 <script setup>
 /**
- * Карточка потока в редакторе: название, тип, статус черновика, удаление, Push to KT / Cancel.
+ * Карточка потока в редакторе: название, тип, отмена правок потока, удаление.
+ * Неопубликованные изменения показывает раздел «Потоки» целиком, а не каждая карточка.
  * Содержимое (поля перехватывающего потока или таблица офферов) — в слоте.
  */
 import { computed, ref, watch } from 'vue'
@@ -36,11 +37,7 @@ function saveName() {
 </script>
 
 <template>
-  <article
-    class="card stream"
-    :class="[`kind-${stream.kind}`, { dirty: stream.has_draft, conflict: stream.conflict }]"
-    :aria-label="stream.name || 'Поток'"
-  >
+  <article class="card stream" :aria-label="stream.name || 'Поток'">
     <header class="stream-head">
       <span class="position mono">{{ stream.position || '—' }}</span>
       <div class="titles">
@@ -77,8 +74,21 @@ function saveName() {
           <span v-if="stream.keitaro_id" class="chip">id: {{ stream.keitaro_id }}</span>
         </div>
       </div>
-      <span v-if="stream.is_new" class="badge tone-amber">Новый · не опубликован</span>
-      <span v-else-if="stream.has_draft" class="badge tone-amber">Не опубликовано</span>
+      <button
+        v-if="stream.has_draft && !stream.is_new"
+        type="button"
+        class="btn btn-ghost btn-sm icon-btn"
+        title="Отменить изменения потока"
+        :aria-label="`Отменить изменения потока ${stream.name}`"
+        :disabled="disabled"
+        @click="emit('cancel')"
+      >
+        <span v-if="busy === 'cancel'" class="spinner" />
+        <svg v-else viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M5 8h7a4 4 0 0 1 0 8H9" />
+          <path d="M8 5L5 8l3 3" />
+        </svg>
+      </button>
       <button
         type="button"
         class="btn btn-ghost btn-sm btn-danger icon-btn"
@@ -101,42 +111,11 @@ function saveName() {
       <AlertBox :tone="stream.conflict ? 'red' : 'amber'">{{ stream.problem }}</AlertBox>
     </div>
 
-    <!-- публикуются все потоки сразу (панель внизу карточки «Потоки»); здесь — откат одного -->
-    <footer v-if="stream.has_draft && !stream.is_new" class="stream-footer">
-      <span class="faint">Есть неопубликованные изменения</span>
-      <button type="button" class="btn btn-ghost btn-sm" :disabled="disabled" @click="emit('cancel')">
-        <span v-if="busy === 'cancel'" class="spinner" /> Cancel
-      </button>
-    </footer>
   </article>
 </template>
 
 <style scoped>
 /* без overflow: hidden — иначе выпадающие списки внутри карточки обрезаются её краем */
-.stream {
-  border-left: 3px solid var(--border-strong);
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.kind-intercept {
-  border-left-color: var(--amber);
-}
-.kind-regular {
-  border-left-color: var(--teal);
-}
-.stream.dirty {
-  border-color: var(--amber);
-  box-shadow:
-    0 0 0 1px var(--amber),
-    var(--shadow);
-}
-.stream.conflict {
-  border-color: var(--red);
-  box-shadow:
-    0 0 0 1px var(--red),
-    var(--shadow);
-}
 .stream-head {
   display: flex;
   flex-wrap: wrap;
@@ -217,8 +196,8 @@ h3 {
   color: var(--text);
 }
 .kind-option-intercept.active {
-  background: var(--amber-soft);
-  color: var(--amber);
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 .kind-option-regular.active {
   background: var(--teal-soft);
@@ -226,10 +205,6 @@ h3 {
 }
 .kind-option:disabled {
   cursor: not-allowed;
-}
-.stream-head > .badge {
-  flex-shrink: 0;
-  margin-top: 4px;
 }
 .icon-btn {
   width: 30px;
@@ -250,36 +225,12 @@ h3 {
 .stream-problem {
   padding: 0 20px 16px;
 }
-.stream-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px 8px 20px;
-  font-size: 13px;
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 var(--radius) var(--radius);
-  background: var(--amber-soft);
-}
-.conflict .stream-footer {
-  background: var(--red-soft);
-}
-
 @media (max-width: 640px) {
   .stream-head {
     padding: 12px 12px 12px 14px;
   }
-  /* бейдж статуса уходит под название, корзина остаётся справа */
-  .stream-head > .badge {
-    order: 3;
-    margin-top: 0;
-    margin-left: 42px;
-  }
   .stream-problem {
     padding: 0 14px 14px;
-  }
-  .stream-footer {
-    padding: 10px 14px;
   }
 }
 </style>

@@ -103,7 +103,6 @@ const offerOptions = computed(() =>
 )
 
 const streams = computed(() => campaign.value?.streams ?? [])
-const draftCount = computed(() => streams.value.filter((s) => s.has_draft).length)
 
 /** { streamId, action } — что сейчас выполняется; остальные действия потока заблокированы */
 const busy = ref(null)
@@ -242,9 +241,6 @@ const busyFor = (stream) =>
           </span>
         </template>
         <template v-if="!isNew" #actions>
-          <span v-if="draftCount" class="badge tone-amber">
-            Не опубликовано потоков: {{ draftCount }}
-          </span>
           <button class="btn btn-soft btn-sm" :disabled="loading || !!busy" @click="refresh">
             <RefreshIcon :spinning="loading" /> Обновить
           </button>
@@ -343,10 +339,38 @@ const busyFor = (stream) =>
           </div>
         </form>
 
-        <section class="card main-col streams-card">
-          <div class="card-header">
+        <section class="card main-col streams-card" :class="{ 'has-changes': drafts.length }">
+          <div class="card-header streams-header">
             <h2>Потоки</h2>
             <span v-if="!isNew && streams.length" class="faint">{{ streams.length }}</span>
+
+            <!-- изменения показываются на уровне всего раздела и публикуются одной пачкой -->
+            <div v-if="drafts.length" class="publish">
+              <span v-if="blockers.length" class="publish-status blocked">
+                Исправьте
+                <button
+                  v-for="s in blockers"
+                  :key="s.id"
+                  type="button"
+                  class="link-btn"
+                  @click="showStream(s.id)"
+                >
+                  «{{ s.name || 'Без названия' }}»
+                </button>
+              </span>
+              <span v-else class="publish-status">
+                <span class="dot" aria-hidden="true" />
+                Не опубликовано: {{ drafts.length }}
+              </span>
+              <button
+                type="button"
+                class="btn btn-primary btn-sm"
+                :disabled="pushing || !!busy || blockers.length > 0"
+                @click="pushAll"
+              >
+                <span v-if="pushing" class="spinner" /> Push to KT
+              </button>
+            </div>
           </div>
 
           <div class="card-body streams-body">
@@ -395,34 +419,6 @@ const busyFor = (stream) =>
                 <span v-else class="plus" aria-hidden="true" />
                 Добавить поток
               </button>
-
-              <!-- прилипает к низу экрана, пока есть что публиковать -->
-              <div v-if="drafts.length" class="publish-bar" :class="{ blocked: blockers.length }">
-                <div class="publish-info">
-                  <strong>Не опубликовано потоков: {{ drafts.length }}</strong>
-                  <span v-if="blockers.length" class="publish-blockers">
-                    Сначала исправьте:
-                    <button
-                      v-for="s in blockers"
-                      :key="s.id"
-                      type="button"
-                      class="link-btn"
-                      @click="showStream(s.id)"
-                    >
-                      «{{ s.name || 'Без названия' }}»
-                    </button>
-                  </span>
-                  <span v-else class="faint">Изменения всех потоков уйдут в Keitaro вместе</span>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  :disabled="pushing || !!busy || blockers.length > 0"
-                  @click="pushAll"
-                >
-                  <span v-if="pushing" class="spinner" /> Push to KT
-                </button>
-              </div>
             </div>
           </div>
         </section>
@@ -572,33 +568,45 @@ h2 {
   margin: 0;
   padding: 14px 20px 16px;
 }
-.publish-bar {
-  position: sticky;
-  bottom: 12px;
-  z-index: 5;
+/* неопубликованные изменения — рамкой всего раздела, а не каждой карточкой */
+.streams-card {
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.streams-card.has-changes {
+  border-color: var(--amber);
+  box-shadow:
+    0 0 0 1px var(--amber),
+    var(--shadow);
+}
+.streams-header {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.publish {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px 16px;
-  padding: 12px 14px 12px 16px;
-  border: 1px solid var(--amber);
-  border-radius: var(--radius);
-  background: var(--amber-soft);
-  box-shadow: var(--shadow-lg);
+  justify-content: flex-end;
+  gap: 8px 12px;
+  margin-left: auto;
 }
-.publish-bar.blocked {
-  border-color: color-mix(in srgb, var(--red) 50%, transparent);
-}
-.publish-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.publish-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  color: var(--amber);
   font-size: 13px;
+  font-weight: 600;
 }
-.publish-blockers {
+.publish-status.blocked {
   color: var(--red);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
 }
 .link-btn {
   padding: 0;
@@ -609,9 +617,6 @@ h2 {
   font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
-}
-.link-btn + .link-btn {
-  margin-left: 4px;
 }
 /* «полоса с плюсиком» под последним потоком */
 .add-stream {
