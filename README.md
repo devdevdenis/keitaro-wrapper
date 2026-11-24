@@ -1,54 +1,69 @@
 # Keitaro Wrapper
 
-Интерфейс для трекера Keitaro поверх его [Admin API](https://admin-api.docs.keitaro.io/): создание кампаний и
-редактор офферов в потоках.
+Интерфейс для трекера Keitaro поверх его [Admin API](https://admin-api.docs.keitaro.io/): список,
+создание и правка кампаний, редактор потоков с черновиками и публикацией в Keitaro.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
 
 ## Возможности
 
-Описание возможностей для пользователя — в [docs/](docs/README.md).
+Описание для пользователя — в [docs/](docs/README.md). Ниже — как это устроено.
 
-### 1. Создание кампании
+### 1. Список кампаний
 
-Форма принимает **название**, **домен**, **группу** и **источник трафика** (списки подтягиваются из
-Keitaro API). Кампания создаётся в Keitaro без потоков (`POST /campaigns`, alias случайный, ссылка
-`https://<домен>/<alias>`), запись сохраняется в таблице `campaigns`. В редакторе у новой кампании
-сразу два шаблона потоков — черновики, которых в Keitaro ещё нет:
+Все кампании трекера (`GET /campaigns`), новые сверху. Поиск и пагинация — на клиенте: Keitaro не
+отдаёт общее количество. Страница, размер страницы и поиск хранятся в query-параметрах `page`,
+`per_page`, `q`; выбранный размер страницы ещё и в `localStorage`. Гео в списке — страны
+опубликованных перехватывающих потоков из `stream_states`; `tracked` — кампания создана здесь
+(есть запись в `campaigns`).
+
+Удаление — `DELETE /campaigns/{id}` в Keitaro, то есть перенос в архив; локальная запись и потоки
+редактора этой кампании удаляются.
+
+### 2. Создание и параметры кампании
+
+Страница кампании одна для создания и правки, в три колонки: параметры, потоки, схема потоков (уже
+1500px схема уходит под параметры, уже 1080px — всё в одну колонку).
+
+Форма принимает **название**, **домен**, **группу** и **источник трафика** (списки — из Keitaro API).
+Кампания создаётся в Keitaro без потоков (`POST /campaigns`, `type=position`, alias случайный,
+ссылка `https://<домен>/<alias>`), запись сохраняется в таблице `campaigns`. Название уходит в
+Keitaro как есть (обрезаются только пробелы по краям). Сразу после создания у кампании два шаблона
+потоков — черновики, которых в Keitaro ещё нет:
 
 | Поток  | Тип Keitaro | Схема      | Шаблон                                                       |
 |--------|-------------|------------|--------------------------------------------------------------|
 | Flow 1 | `forced`    | `redirect` | Редирект на `GOOGLE_REDIRECT_URL`, страны не выбраны, `filter_or=true` (ИЛИ) |
 | Flow 2 | `regular`   | `landings` | Без офферов                                                  |
 
-Параметры кампании правятся на той же странице и сохраняются сразу (`PUT /campaigns/{id}`).
+Параметры существующей кампании сохраняются сразу (`PUT /campaigns/{id}`).
 
-### 2. Редактор кампании
+### 3. Редактор потоков
 
 Правила для пользователя — в [docs/campaign-editor.md](docs/campaign-editor.md). Каждый поток
 кампании — строка в `stream_states` (`keitaro_id = NULL` у ещё не опубликованного потока):
+`saved` — поток, сверенный с Keitaro, `draft` — неопубликованные правки, `draft_base` — что было в
+Keitaro, когда начали правку.
 
-- **Перехватывающий** (`forced` + `redirect`): название, страны (фильтр `country`, `mode=accept`),
-  логика фильтров `filter_or` (ИЛИ по умолчанию / И), адрес редиректа. Остальные фильтры потока
-  при публикации сохраняются.
+- **Перехватывающий** (`forced` + `redirect`): название, страны (фильтр `COUNTRY_FILTER_NAME`,
+  `mode=accept`), логика фильтров `filter_or` (ИЛИ по умолчанию / И), адрес редиректа. Остальные
+  фильтры потока при публикации сохраняются.
 - **Обычный** (`landings`): название и офферы. **Add / Remove / Bring Back** и закрепление доли;
   доли пересчитываются сразу: удалённые — 0 %, закреплённые сохраняют долю, остаток делится
   поровну (лишние проценты — первым офферам). Закрепление долей не меняет, снятие — пересчитывает.
-- **Остальные** потоки показываются только названием.
-- Все правки копятся в черновике (`draft`); **Push to KT** создаёт поток (`POST /streams`) или
-  обновляет его (`PUT /streams/{id}`), **Cancel** отбрасывает черновик. Удаление потока —
-  `DELETE /streams/{id}` (шаблон удаляется только у нас).
+  Новый оффер проверяется в Keitaro (`GET /offers/{id}`): не найден или в архиве — 422.
+- **Остальные** потоки показываются только названием; их можно удалить.
+- Новый поток (`POST /api/campaigns/{id}/streams`) — шаблон с названием Flow N.
+- Все правки копятся в черновике; **Push to KT** создаёт поток (`POST /streams`) или обновляет его
+  (`PUT /streams/{id}`), **Cancel** отбрасывает черновик. Удаление потока — `DELETE /streams/{id}`
+  (шаблон удаляется только у нас).
 - Push недоступен, пока черновик не готов: нет названия, стран, корректного редиректа, офферов,
   удалены все офферы или освободившуюся долю некому отдать.
-- При каждом открытии редактора потоки сверяются с Keitaro (`saved`); удалённые там офферы
-  помечаются Removed, удалённые потоки пропадают. Если поток изменили в Keitaro, пока был
-  черновик, публикация блокируется (409), чтобы не затереть чужие правки.
-
-### 3. Список и удаление кампаний
-
-Все кампании трекера с поиском и пагинацией на клиенте (страница, размер страницы и поиск — в
-query-параметрах `page`, `per_page`, `q`). Удаление — `DELETE /campaigns/{id}` в Keitaro, то есть
-перенос в архив; локальная запись и черновики потоков кампании удаляются.
+- При каждом открытии редактора потоки сверяются с Keitaro; удалённые там офферы помечаются
+  Removed, удалённые потоки пропадают. Если поток изменили в Keitaro, пока был черновик,
+  публикация блокируется (409), чтобы не затереть чужие правки.
+- **Схема** на странице кампании показывает потоки в порядке проверки Keitaro (`forced` →
+  `regular` → `default`, внутри — по позиции) с учётом черновиков.
 
 ## Быстрый старт (локально)
 
@@ -143,8 +158,8 @@ docker compose up --build
 
 ## Фикстуры БД
 
-`backend/app/fixtures/data/countries.json` → таблица `countries`: 249 стран ISO 3166-1 alpha-2,
-из них выбирается гео при создании кампании.
+`backend/app/fixtures/data/countries.json` → таблица `countries`: 249 стран ISO 3166-1 alpha-2.
+Из них выбираются страны перехватывающего потока; коды проверяются по этой таблице.
 
 Загрузить справочник:
 
@@ -186,6 +201,7 @@ make lint
 | `TEST_DATABASE_URL`      | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper_test` | База для pytest |
 | `KEITARO_URL`            | —                                         | Адрес трекера                              |
 | `KEITARO_API_KEY`        | —                                         | Admin API key                              |
+| `KEITARO_TIMEOUT`        | `15`                                      | Таймаут запросов к Keitaro, секунд         |
 | `GOOGLE_REDIRECT_URL`    | `https://www.google.com`                  | Редирект в шаблоне перехватывающего потока |
 | `STREAM_REDIRECT_ACTION` | `http`                                    | Тип редиректа потока (`action_type`)       |
 | `COUNTRY_FILTER_NAME`    | `country`                                 | Имя фильтра страны в Keitaro               |
@@ -203,9 +219,9 @@ make lint
 | `GET`    | `/api/keitaro/offers`                     | Офферы                                     |
 | `GET`    | `/api/campaigns`                          | Все кампании трекера; `tracked` — созданные здесь, а не в Keitaro |
 | `POST`   | `/api/campaigns`                          | Создать кампанию без потоков (в редакторе — два шаблона) |
+| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет потоки с Keitaro |
 | `PUT`    | `/api/campaigns/{id}`                     | Сохранить параметры кампании (сразу в Keitaro) |
 | `DELETE` | `/api/campaigns/{id}`                     | Удалить кампанию (в Keitaro — в архив)     |
-| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет потоки с Keitaro |
 | `POST`   | `/api/campaigns/{id}/streams`             | Новый поток Flow N (`{"kind": "intercept" \| "regular"}`) |
 | `PATCH`  | `/api/streams/{id}`                       | Черновик: название, страны, `filter_or`, редирект |
 | `DELETE` | `/api/streams/{id}`                       | Удалить поток (и в Keitaro, если опубликован) |
@@ -215,6 +231,9 @@ make lint
 | `PUT`    | `/api/streams/{id}/offers/{offer_id}/pin` | Черновик: закрепить долю (`{"pinned": true}`) или снять |
 | `POST`   | `/api/streams/{id}/push`                  | Push to KT — опубликовать черновик         |
 | `DELETE` | `/api/streams/{id}/draft`                 | Cancel — отбросить черновик                |
+
+`{id}` у `/api/streams/…` — id потока в нашей БД (поле `id` в ответе), а не в Keitaro: у
+неопубликованного потока id в Keitaro ещё нет (`keitaro_id = null`).
 
 Пример создания кампании:
 
@@ -235,20 +254,25 @@ backend/
     schemas.py           # Pydantic-схемы
     keitaro/
       client.py          # httpx-клиент Admin API v1
-      payloads.py        # сборка тел запросов (кампания, потоки, офферы потока)
+      payloads.py        # сборка тел запросов: кампания, офферы потока
     services/
       campaigns.py       # создание, правка и удаление кампании
+      stream_editor.py   # потоки: сверка с Keitaro, шаблоны, черновики, Push to KT, Cancel, удаление
       stream_spec.py     # поток в редакторе: виды, шаблоны, проверка, тело запроса в Keitaro
-      offer_shares.py    # правила редактора: пересчёт долей, сверка с Keitaro
-      stream_editor.py   # потоки: шаблоны, черновики, Push to KT, Cancel, удаление
-    api/routes/          # эндпоинты
+      offer_shares.py    # офферы потока: пересчёт долей, сверка с Keitaro
+      offers.py          # проверка оффера в Keitaro
+      errors.py          # ServiceError → {"detail": …}
+    api/routes/          # эндпоинты: campaigns, streams, dictionaries, meta
     fixtures/            # JSON-фикстуры и CLI загрузки
   alembic/               # миграции
   tests/                 # pytest + заглушка Keitaro для тестов
 frontend/
   src/
     api/                 # fetch-клиент
-    composables/         # useAsync, useDictionaries, useHealth, useToast
-    components/          # SearchSelect, StreamCard, InterceptFields, OfferTable, …
-    views/               # список кампаний, страница кампании (создание и редактор)
+    composables/         # useAsync, useDictionaries, useDeleteCampaign, useHealth, useToast
+    components/          # StreamCard, InterceptFields, OfferTable, StreamsOverview,
+                         # SearchSelect, TablePagination, ConfirmDialog, …
+    views/
+      CampaignsView.vue  # список кампаний
+      CampaignView.vue   # страница кампании: создание, параметры, схема, потоки
 ```
