@@ -16,6 +16,13 @@ const emit = defineEmits(['add', 'remove', 'restore', 'forget', 'pin'])
 
 const disabled = computed(() => Boolean(props.busy))
 
+/** Удалённые офферы — внизу, под всеми активными. Порядок данных (и пересчёт долей) не меняется:
+ * после Bring Back оффер возвращается на своё место. */
+const rows = computed(() => [
+  ...props.offers.filter((o) => !o.removed),
+  ...props.offers.filter((o) => o.removed),
+])
+
 const newOffer = ref(null)
 const availableOptions = computed(() => {
   const listed = new Set(props.offers.map((o) => o.offer_id))
@@ -50,7 +57,7 @@ function add() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="o in offers" :key="o.offer_id" :class="{ removed: o.removed }">
+          <tr v-for="o in rows" :key="o.offer_id" :class="{ removed: o.removed }">
             <td>
               <div class="offer">
                 <span class="chip">#{{ o.offer_id }}</span>
