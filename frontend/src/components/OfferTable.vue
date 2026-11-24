@@ -60,6 +60,18 @@ function add() {
           <tr v-for="o in rows" :key="o.offer_id" :class="{ removed: o.removed }">
             <td>
               <div class="offer">
+                <!-- «убрать насовсем» — слева, подальше от Bring Back, чтобы не промахнуться -->
+                <button
+                  v-if="o.removed"
+                  type="button"
+                  class="btn btn-ghost btn-sm btn-danger forget"
+                  title="Убрать из списка насовсем"
+                  :aria-label="`Убрать оффер #${o.offer_id} из списка`"
+                  :disabled="disabled"
+                  @click="emit('forget', o.offer_id)"
+                >
+                  ×
+                </button>
                 <span class="chip">#{{ o.offer_id }}</span>
                 <span class="offer-name" :title="offerName(o.offer_id)">
                   {{ offerName(o.offer_id) }}
@@ -93,26 +105,15 @@ function add() {
               <span v-if="shareChanged(o)" class="was faint">было {{ o.published_share }}%</span>
             </td>
             <td class="actions-col">
-              <div v-if="o.removed" class="removed-actions">
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  :disabled="disabled"
-                  @click="emit('restore', o.offer_id)"
-                >
-                  Bring Back
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm btn-danger forget"
-                  title="Убрать из списка насовсем"
-                  :aria-label="`Убрать оффер #${o.offer_id} из списка`"
-                  :disabled="disabled"
-                  @click="emit('forget', o.offer_id)"
-                >
-                  ×
-                </button>
-              </div>
+              <button
+                v-if="o.removed"
+                type="button"
+                class="btn btn-sm"
+                :disabled="disabled"
+                @click="emit('restore', o.offer_id)"
+              >
+                Bring Back
+              </button>
               <button
                 v-else
                 type="button"
@@ -191,13 +192,10 @@ function add() {
   white-space: nowrap;
   text-align: right;
 }
-.removed-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
 .forget {
-  width: 30px;
+  width: 26px;
+  height: 26px;
+  margin-left: -6px;
   padding: 0;
   font-size: 18px;
   line-height: 1;
