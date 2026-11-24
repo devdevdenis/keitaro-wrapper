@@ -143,10 +143,10 @@ function openCampaign(campaign, event) {
             <tr>
               <th>ID</th>
               <th>Название</th>
-              <th>Гео</th>
-              <th>Группа / источник</th>
+              <th class="hide-sm">Гео</th>
+              <th class="hide-sm">Группа / источник</th>
               <th>Статус</th>
-              <th>Создана</th>
+              <th class="hide-sm">Создана</th>
               <th class="actions-col"><span class="sr-only">Действия</span></th>
             </tr>
           </thead>
@@ -170,7 +170,7 @@ function openCampaign(campaign, event) {
                   </span>
                 </div>
               </td>
-              <td>
+              <td class="hide-sm">
                 <span v-if="c.country_codes.length" :title="c.country_codes.join(', ')">
                   <span v-for="code in c.country_codes" :key="code" class="geo">
                     {{ flag(code) }} {{ code }}
@@ -178,13 +178,13 @@ function openCampaign(campaign, event) {
                 </span>
                 <span v-else class="faint">—</span>
               </td>
-              <td class="muted">
+              <td class="muted hide-sm">
                 {{ groupsById[c.group_id]?.name ?? '—' }}
                 <span class="faint"> · </span>
                 {{ sourcesById[c.traffic_source_id]?.name ?? '—' }}
               </td>
               <td><StateBadge :state="c.state" /></td>
-              <td class="muted nowrap">{{ formatDate(c.created_at) }}</td>
+              <td class="muted nowrap hide-sm">{{ formatDate(c.created_at) }}</td>
               <td class="actions-col">
                 <button
                   type="button"
@@ -253,9 +253,6 @@ function openCampaign(campaign, event) {
 .empty p {
   margin: 0;
 }
-.table-wrap {
-  overflow-x: auto;
-}
 .campaign-name {
   color: var(--text);
   font-weight: 600;
@@ -290,12 +287,38 @@ function openCampaign(campaign, event) {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+
+@media (max-width: 640px) {
+  .hide-sm {
+    display: none;
+  }
+  .toolbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .toolbar .search {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+  }
+  .toolbar .spacer {
+    display: none;
+  }
+  .table th,
+  .table td {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+  .table th:first-child,
+  .table td:first-child {
+    padding-left: 14px;
+  }
+  .table th:last-child,
+  .table td:last-child {
+    padding-right: 10px;
+  }
+  .actions-col {
+    width: auto;
+  }
 }
 </style>

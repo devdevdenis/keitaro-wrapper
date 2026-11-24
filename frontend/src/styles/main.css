@@ -352,6 +352,23 @@ select.input {
 }
 
 /* --- служебное --------------------------------------------------------- */
+/* текст только для скринридеров; не раздвигает страницу (раньше вылезал за край на телефоне) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* обёртка таблицы: своя прокрутка по горизонтали, страницу не раздвигает */
+.table-wrap {
+  position: relative;
+  overflow-x: auto;
+}
 .muted {
   color: var(--text-2);
 }

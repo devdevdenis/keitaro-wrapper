@@ -243,24 +243,49 @@ function add() {
   gap: 8px;
   max-width: 520px;
 }
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
 
 @media (max-width: 640px) {
+  .offers th,
+  .offers td {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+  .offers th:first-child,
+  .offers td:first-child {
+    padding-left: 14px;
+  }
+  .offers th:last-child,
+  .offers td:last-child {
+    padding-right: 14px;
+  }
+  /* название оффера переносится на вторую строку, а не растягивает таблицу */
+  .offer {
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+  .offer-name {
+    flex-basis: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .share-bar {
     display: none;
   }
-  .share-col {
+  .share-col,
+  .actions-col {
+    width: auto;
+  }
+  .share {
     width: auto;
   }
   .was {
     padding-left: 0;
+  }
+  .stream-body {
+    padding: 12px 14px 14px;
+  }
+  .add-offer {
+    max-width: none;
   }
 }
 </style>

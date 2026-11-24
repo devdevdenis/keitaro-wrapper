@@ -40,6 +40,14 @@ const { toasts, dismiss } = useToast()
   box-shadow: var(--shadow-lg);
   cursor: pointer;
 }
+@media (max-width: 640px) {
+  .toasts {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    max-width: none;
+  }
+}
 .toast-error {
   border-left-color: var(--red);
 }

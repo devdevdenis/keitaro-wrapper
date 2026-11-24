@@ -151,8 +151,9 @@ function saveName() {
 }
 .stream-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 14px 16px 14px 20px;
 }
 .position {
@@ -272,5 +273,23 @@ h3 {
 }
 .conflict .stream-footer {
   background: var(--red-soft);
+}
+
+@media (max-width: 640px) {
+  .stream-head {
+    padding: 12px 12px 12px 14px;
+  }
+  /* бейдж статуса уходит под название, корзина остаётся справа */
+  .stream-head > .badge {
+    order: 3;
+    margin-top: 0;
+    margin-left: 42px;
+  }
+  .stream-problem {
+    padding: 0 14px 14px;
+  }
+  .stream-footer {
+    padding: 10px 14px;
+  }
 }
 </style>
