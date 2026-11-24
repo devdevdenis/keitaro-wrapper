@@ -178,6 +178,25 @@ async def test_add_stream_gets_next_flow_name(client, campaign):
     assert missing.status_code == 404
 
 
+async def test_new_stream_type_is_chosen_in_the_stream(client, campaign, intercept):
+    added = (await client.post(f"/api/campaigns/{campaign['id']}/streams")).json()
+    assert (added["name"], added["kind"]) == ("Flow 3", "regular")  # по умолчанию — обычный
+
+    await client.patch(f"/api/streams/{added['id']}", json={"name": "Geo"})
+    switched = (
+        await client.patch(f"/api/streams/{added['id']}", json={"kind": "intercept"})
+    ).json()
+    assert (switched["name"], switched["kind"], switched["type"]) == ("Geo", "intercept", "forced")
+    assert switched["redirect_url"] == "https://www.google.com"
+
+    back = (await client.patch(f"/api/streams/{added['id']}", json={"kind": "regular"})).json()
+    assert (back["kind"], back["offers"], back["name"]) == ("regular", [], "Geo")
+
+    # у опубликованного потока тип не меняется
+    response = await client.patch(f"/api/streams/{intercept['id']}", json={"kind": "regular"})
+    assert response.status_code == 400
+
+
 async def test_delete_template_and_published_stream(client, keitaro, campaign, intercept):
     template = await stream_named(client, campaign, "Flow 2")
     assert (await client.delete(f"/api/streams/{template['id']}")).status_code == 204

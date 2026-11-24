@@ -82,12 +82,13 @@ async def delete_campaign(campaign_id: int, keitaro: KeitaroDep, session: Sessio
 )
 async def add_stream(
     campaign_id: int,
-    data: StreamCreate,
     keitaro: KeitaroDep,
     session: SessionDep,
     settings: SettingsDep,
+    data: StreamCreate | None = None,
 ):
-    """Новый поток Flow N — шаблон в черновике, в Keitaro он появится по Push to KT."""
+    """Новый поток Flow N (по умолчанию обычный) — шаблон в черновике, в Keitaro — по Push to KT."""
     await keitaro.get_campaign(campaign_id)  # 404, если кампании нет
-    state = await editor.add_stream(session, campaign_id, data.kind, settings)
+    kind = data.kind if data is not None else "regular"
+    state = await editor.add_stream(session, campaign_id, kind, settings)
     return editor.view(state)

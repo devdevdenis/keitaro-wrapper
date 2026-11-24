@@ -111,7 +111,7 @@ function openCampaign(campaign, event) {
       <div class="toolbar">
         <input v-model="search" class="input search" placeholder="Поиск по ID, названию, alias…" />
         <div class="spacer" />
-        <button class="btn btn-ghost btn-sm" :disabled="loading" @click="reload">
+        <button class="btn btn-soft btn-sm" :disabled="loading" @click="reload">
           <RefreshIcon :spinning="loading" /> Обновить
         </button>
       </div>

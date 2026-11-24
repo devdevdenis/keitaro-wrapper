@@ -3,7 +3,7 @@
  * Кампания: параметры сверху, потоки снизу. id = null — создание новой кампании.
  * Параметры сохраняются сразу в Keitaro; правки потоков копятся в черновиках и уходят по Push to KT.
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { api } from '@/api'
 import AlertBox from '@/components/AlertBox.vue'
@@ -107,7 +107,7 @@ const draftCount = computed(() => streams.value.filter((s) => s.has_draft).lengt
 
 /** { streamId, action } — что сейчас выполняется; остальные действия потока заблокированы */
 const busy = ref(null)
-const adding = ref(null)
+const adding = ref(false)
 
 const ACTIONS = {
   patch: (id, patch) => api.updateStream(id, patch),
@@ -138,14 +138,18 @@ async function act(stream, action, ...args) {
   }
 }
 
-async function addStream(kind) {
-  adding.value = kind
+/** Новый поток — внизу списка; тип выбирается в самой карточке */
+async function addStream() {
+  adding.value = true
   try {
-    setStreams([...streams.value, await api.addStream(props.id, kind)])
+    const stream = await api.addStream(props.id)
+    setStreams([...streams.value, stream])
+    await nextTick()
+    showStream(stream.id)
   } catch (e) {
     toast.error(e.message)
   } finally {
-    adding.value = null
+    adding.value = false
   }
 }
 
@@ -214,14 +218,17 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
           <span v-if="draftCount" class="badge tone-amber">
             Не опубликовано потоков: {{ draftCount }}
           </span>
-          <button class="btn btn-ghost btn-sm" :disabled="loading || !!busy" @click="refresh">
+          <button class="btn btn-soft btn-sm" :disabled="loading || !!busy" @click="refresh">
             <RefreshIcon :spinning="loading" /> Обновить
           </button>
           <button
-            class="btn btn-ghost btn-sm btn-danger"
+            class="btn btn-soft-danger btn-sm"
             :disabled="!!busy"
             @click="removal.ask(campaign)"
           >
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10M9 9v4M11 9v4" />
+            </svg>
             Удалить
           </button>
         </template>
@@ -309,68 +316,62 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
           </div>
         </form>
 
-        <div class="main-col">
-          <div class="streams-head">
+        <section class="card main-col streams-card">
+          <div class="card-header">
             <h2>Потоки</h2>
-            <div v-if="!isNew" class="row">
-              <button
-                type="button"
-                class="btn btn-sm"
-                :disabled="!!adding"
-                @click="addStream('intercept')"
-              >
-                <span v-if="adding === 'intercept'" class="spinner" /> + Перехватывающий
-              </button>
-              <button type="button" class="btn btn-sm" :disabled="!!adding" @click="addStream('regular')">
-                <span v-if="adding === 'regular'" class="spinner" /> + Обычный
+            <span v-if="!isNew && streams.length" class="faint">{{ streams.length }}</span>
+          </div>
+
+          <div class="card-body streams-body">
+            <p v-if="isNew" class="placeholder muted">
+              Потоки станут доступны после создания кампании.
+            </p>
+
+            <div v-else class="streams">
+                <StreamCard
+                  v-for="stream in streams"
+                  :id="`stream-${stream.id}`"
+                  :key="stream.id"
+                  :stream="stream"
+                  :busy="busyFor(stream)"
+                  @patch="(patch) => act(stream, 'patch', patch)"
+                  @push="act(stream, 'push')"
+                  @cancel="act(stream, 'cancel')"
+                  @delete="streamToDelete = stream"
+                >
+                  <InterceptFields
+                    v-if="stream.kind === 'intercept'"
+                    :stream="stream"
+                    :country-options="countryOptions"
+                    :busy="busyFor(stream)"
+                    @patch="(patch) => act(stream, 'patch', patch)"
+                  />
+                  <OfferTable
+                    v-else-if="stream.kind === 'regular'"
+                    :offers="stream.offers"
+                    :offers-by-id="offersById"
+                    :offer-options="offerOptions"
+                    :busy="busyFor(stream)"
+                    @add="(offerId) => act(stream, 'add', offerId)"
+                    @remove="(offerId) => act(stream, 'remove', offerId)"
+                    @restore="(offerId) => act(stream, 'restore', offerId)"
+                    @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
+                  />
+                  <p v-else class="other muted">
+                    Этот поток редактор не разбирает — его настройки меняются в Keitaro.
+                  </p>
+                </StreamCard>
+
+              <p v-if="!streams.length" class="placeholder muted">У кампании пока нет потоков.</p>
+
+              <button type="button" class="add-stream" :disabled="adding" @click="addStream">
+                <span v-if="adding" class="spinner" />
+                <span v-else class="plus" aria-hidden="true" />
+                Добавить поток
               </button>
             </div>
           </div>
-
-          <div v-if="isNew" class="card placeholder">
-            <p class="muted">Потоки станут доступны после создания кампании.</p>
-          </div>
-
-          <div v-else class="streams">
-            <StreamCard
-              v-for="stream in streams"
-              :id="`stream-${stream.id}`"
-              :key="stream.id"
-              :stream="stream"
-              :busy="busyFor(stream)"
-              @patch="(patch) => act(stream, 'patch', patch)"
-              @push="act(stream, 'push')"
-              @cancel="act(stream, 'cancel')"
-              @delete="streamToDelete = stream"
-            >
-              <InterceptFields
-                v-if="stream.kind === 'intercept'"
-                :stream="stream"
-                :country-options="countryOptions"
-                :busy="busyFor(stream)"
-                @patch="(patch) => act(stream, 'patch', patch)"
-              />
-              <OfferTable
-                v-else-if="stream.kind === 'regular'"
-                :offers="stream.offers"
-                :offers-by-id="offersById"
-                :offer-options="offerOptions"
-                :busy="busyFor(stream)"
-                @add="(offerId) => act(stream, 'add', offerId)"
-                @remove="(offerId) => act(stream, 'remove', offerId)"
-                @restore="(offerId) => act(stream, 'restore', offerId)"
-                @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
-              />
-              <p v-else class="other muted">
-                Этот поток редактор не разбирает — его настройки меняются в Keitaro.
-              </p>
-            </StreamCard>
-
-            <div v-if="!streams.length" class="card placeholder">
-              <p class="muted">У кампании нет потоков — добавьте перехватывающий или обычный поток.</p>
-            </div>
-          </div>
-        </div>
+        </section>
 
         <aside class="overview-col">
           <section class="card overview">
@@ -448,8 +449,8 @@ h2 {
  */
 .page-grid {
   display: grid;
-  /* потокам — чуть больше места, чем схеме, но не всё: карточкам хватает ~500–900px */
-  grid-template-columns: minmax(260px, 320px) minmax(520px, 1.15fr) minmax(320px, 1fr);
+  /* потокам — больше места, чем схеме, но не всё: карточкам хватает ~550–900px */
+  grid-template-columns: minmax(300px, 380px) minmax(540px, 1.4fr) minmax(300px, 1fr);
   grid-template-areas: 'params streams overview';
   align-items: start;
   gap: 20px;
@@ -487,17 +488,18 @@ h2 {
   background: var(--surface-2);
   border-radius: 0 0 var(--radius) var(--radius);
 }
-.streams-head {
+.streams {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 30px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 14px;
 }
-.streams-head h2 {
-  font-size: 17px;
+.streams-card .card-header {
+  justify-content: flex-start;
+}
+.streams-body {
+  padding: 14px;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--surface-2);
 }
 .streams :deep(.flash) {
   animation: flash 1.2s ease-out;
@@ -507,23 +509,59 @@ h2 {
     box-shadow: 0 0 0 3px var(--accent);
   }
 }
-.streams {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 .placeholder {
-  padding: 28px 20px;
+  margin: 0;
+  padding: 18px 8px;
   text-align: center;
 }
-.placeholder p,
 .other {
   margin: 0;
-}
-.other {
   padding: 14px 20px 16px;
 }
-
+/* «полоса с плюсиком» под последним потоком */
+.add-stream {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 46px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+.add-stream:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.add-stream:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.plus {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: currentColor;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+}
+.plus::before {
+  content: '+';
+  color: var(--surface);
+}
 @media (max-width: 1599px) {
   .page-grid {
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);

@@ -167,6 +167,35 @@ code,
   background: var(--red-soft);
   color: var(--red);
 }
+/* мягкие цветные кнопки для действий в шапке страницы */
+.btn-soft {
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.btn-soft:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+.btn-soft-danger {
+  border-color: color-mix(in srgb, var(--red) 25%, transparent);
+  background: var(--red-soft);
+  color: var(--red);
+}
+.btn-soft-danger:hover {
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 16%, var(--surface));
+}
+.btn .icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .btn-sm {
   height: 30px;
   padding: 0 10px;

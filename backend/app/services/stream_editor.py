@@ -167,18 +167,32 @@ async def delete_stream(session: AsyncSession, keitaro: KeitaroAPI, state_id: in
 # --- правка черновика ----------------------------------------------------------
 
 
-async def update_fields(session: AsyncSession, state_id: int, patch: StreamPatch) -> StreamState:
+async def update_fields(
+    session: AsyncSession, state_id: int, patch: StreamPatch, settings: Settings
+) -> StreamState:
     state = await _locked_state(session, state_id)
     current = specs.load(state.draft) or specs.load(state.saved)
     changes = patch.model_dump(exclude_none=True)
     if current.kind == "other":
         raise ServiceError("Этот поток редактор не меняет")
-    if current.kind != "intercept" and changes.keys() & {"countries", "filter_or", "redirect_url"}:
+
+    kind = changes.pop("kind", current.kind)
+    if kind != current.kind and state.keitaro_id is not None:
+        raise ServiceError(
+            "Тип опубликованного потока не меняется: удалите поток и добавьте новый нужного типа"
+        )
+    if kind != "intercept" and changes.keys() & {"countries", "filter_or", "redirect_url"}:
         raise ServiceError("Страны, логику фильтров и редирект задают у перехватывающего потока")
     if "countries" in changes:
         await _ensure_countries_known(session, changes["countries"])
         changes["countries"] = tuple(changes["countries"])
-    return await _apply(session, state, lambda spec: replace(spec, **changes))
+
+    def change(spec: StreamSpec) -> StreamSpec:
+        if kind != spec.kind:  # новый поток сменил тип — начинаем с шаблона этого типа
+            spec = specs.template(kind, spec.name, settings)
+        return replace(spec, **changes)
+
+    return await _apply(session, state, change)
 
 
 async def add_offer(

@@ -13,9 +13,11 @@ router = APIRouter(prefix="/streams/{stream_id}", tags=["stream editor"])
 
 
 @router.patch("", response_model=StreamOut)
-async def update_stream(stream_id: int, data: StreamPatch, session: SessionDep):
-    """Название, страны, логика фильтров (ИЛИ/И), адрес редиректа — в черновик."""
-    return editor.view(await editor.update_fields(session, stream_id, data))
+async def update_stream(
+    stream_id: int, data: StreamPatch, session: SessionDep, settings: SettingsDep
+):
+    """Название, тип (у неопубликованного), страны, логика фильтров, редирект — в черновик."""
+    return editor.view(await editor.update_fields(session, stream_id, data, settings))
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)

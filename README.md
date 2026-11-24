@@ -53,7 +53,9 @@ Keitaro, когда начали правку.
   поровну (лишние проценты — первым офферам). Закрепление долей не меняет, снятие — пересчитывает.
   Новый оффер проверяется в Keitaro (`GET /offers/{id}`): не найден или в архиве — 422.
 - **Остальные** потоки показываются только названием; их можно удалить.
-- Новый поток (`POST /api/campaigns/{id}/streams`) — шаблон с названием Flow N.
+- Новый поток (`POST /api/campaigns/{id}/streams`) — шаблон обычного потока с названием Flow N.
+  Пока поток не опубликован, его тип меняется (`PATCH` с `kind`): черновик заменяется шаблоном
+  нового типа с тем же названием.
 - Все правки копятся в черновике; **Push to KT** создаёт поток (`POST /streams`) или обновляет его
   (`PUT /streams/{id}`), **Cancel** отбрасывает черновик. Удаление потока — `DELETE /streams/{id}`
   (шаблон удаляется только у нас).
@@ -222,8 +224,8 @@ make lint
 | `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки; сверяет потоки с Keitaro |
 | `PUT`    | `/api/campaigns/{id}`                     | Сохранить параметры кампании (сразу в Keitaro) |
 | `DELETE` | `/api/campaigns/{id}`                     | Удалить кампанию (в Keitaro — в архив)     |
-| `POST`   | `/api/campaigns/{id}/streams`             | Новый поток Flow N (`{"kind": "intercept" \| "regular"}`) |
-| `PATCH`  | `/api/streams/{id}`                       | Черновик: название, страны, `filter_or`, редирект |
+| `POST`   | `/api/campaigns/{id}/streams`             | Новый поток Flow N (тело необязательно: `{"kind": "intercept" \| "regular"}`, по умолчанию `regular`) |
+| `PATCH`  | `/api/streams/{id}`                       | Черновик: название, тип (`kind`, только у неопубликованного), страны, `filter_or`, редирект |
 | `DELETE` | `/api/streams/{id}`                       | Удалить поток (и в Keitaro, если опубликован) |
 | `POST`   | `/api/streams/{id}/offers`                | Черновик: добавить оффер (`{"offer_id"}`)  |
 | `DELETE` | `/api/streams/{id}/offers/{offer_id}`     | Черновик: удалить оффер                    |

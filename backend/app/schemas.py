@@ -105,13 +105,14 @@ class CampaignSummary(BaseModel):
 
 
 class StreamCreate(BaseModel):
-    kind: Literal["intercept", "regular"]
+    kind: Literal["intercept", "regular"] = "regular"  # тип потом выбирается в самом потоке
 
 
 class StreamPatch(BaseModel):
     """Правка полей потока в черновике; переданы только изменённые поля."""
 
     name: str | None = Field(default=None, max_length=100)
+    kind: Literal["intercept", "regular"] | None = None  # только у неопубликованного потока
     countries: list[str] | None = None
     filter_or: bool | None = None
     redirect_url: str | None = Field(default=None, max_length=2000)
