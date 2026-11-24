@@ -103,7 +103,7 @@ function go(n) {
 .size-select {
   width: auto;
   height: 30px;
-  padding: 0 8px;
+  padding: 0 30px 0 10px;
 }
 .pages {
   display: flex;
