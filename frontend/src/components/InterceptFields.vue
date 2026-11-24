@@ -63,12 +63,12 @@ function saveRedirect() {
         :disabled="disabled"
         @change="emit('patch', { filter_or: $event.target.value === 'or' })"
       >
-        <option value="or">ИЛИ — достаточно одного условия</option>
-        <option value="and">И — нужны все условия</option>
+        <option value="or">ИЛИ — любое условие</option>
+        <option value="and">И — все условия</option>
       </select>
     </div>
 
-    <div class="field wide">
+    <div class="field">
       <label class="field-label" :for="fieldId('redirect')">Редирект на</label>
       <input
         :id="fieldId('redirect')"
@@ -86,14 +86,15 @@ function saveRedirect() {
 
 <style scoped>
 /* класс не .fields: стили родительской страницы попадают на корневой элемент компонента */
+/* страны — на всю ширину; ниже логика (узкая) и редирект */
 .intercept-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 16px;
   padding: 16px 20px 18px;
 }
 .wide {
-  grid-column: span 2;
+  grid-column: 1 / -1;
 }
 @media (max-width: 860px) {
   .intercept-fields {

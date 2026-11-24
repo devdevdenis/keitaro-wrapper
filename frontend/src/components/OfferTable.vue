@@ -158,10 +158,10 @@ function add() {
   white-space: nowrap;
 }
 .share-col {
-  width: 210px;
+  width: 170px;
 }
 .actions-col {
-  width: 120px;
+  width: 110px;
   text-align: right;
 }
 .share-cell {
@@ -170,7 +170,7 @@ function add() {
   gap: 8px;
 }
 .share-bar {
-  width: 80px;
+  width: 56px;
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
@@ -192,7 +192,7 @@ function add() {
 }
 .was {
   display: block;
-  padding-left: 88px;
+  padding-left: 64px;
   font-size: 12px;
 }
 .pin {

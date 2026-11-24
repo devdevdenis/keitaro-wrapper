@@ -443,12 +443,13 @@ h2 {
   font-size: 15px;
 }
 /*
- * Три колонки: параметры | потоки | схема. Уже 1500px схема уходит под параметры (иначе таблице
+ * Три колонки: параметры | потоки | схема. Уже 1600px схема уходит под параметры (иначе таблице
  * офферов в середине не хватает ширины), уже 1080px — всё в одну колонку.
  */
 .page-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 340px);
+  /* потокам — чуть больше места, чем схеме, но не всё: карточкам хватает ~500–900px */
+  grid-template-columns: minmax(260px, 320px) minmax(520px, 1.15fr) minmax(320px, 1fr);
   grid-template-areas: 'params streams overview';
   align-items: start;
   gap: 20px;
@@ -523,7 +524,7 @@ h2 {
   padding: 14px 20px 16px;
 }
 
-@media (max-width: 1499px) {
+@media (max-width: 1599px) {
   .page-grid {
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
     grid-template-rows: auto 1fr;
