@@ -1,10 +1,11 @@
 <script setup>
 import { computed } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import ToastHost from '@/components/ToastHost.vue'
 import { useHealth } from '@/composables/useHealth'
 
 const { health } = useHealth()
+const route = useRoute()
 
 const connection = computed(() => {
   const mode = health.value?.keitaro
@@ -20,24 +21,20 @@ const connection = computed(() => {
     <aside class="sidebar">
       <RouterLink to="/" class="brand">
         <span class="brand-mark">K</span>
-        <span>
-          <strong>Keitaro Wrapper</strong>
-          <small>campaign tools</small>
-        </span>
+        <strong>Keitaro Wrapper</strong>
       </RouterLink>
 
       <nav class="nav">
-        <RouterLink :to="{ name: 'campaigns' }" class="nav-link" exact-active-class="active">
+        <!-- раздел активен и на создании, и в редакторе кампании -->
+        <RouterLink
+          :to="{ name: 'campaigns' }"
+          class="nav-link"
+          :class="{ active: route.path.startsWith('/campaigns') }"
+        >
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 5h14M3 10h14M3 15h9" />
           </svg>
           Кампании
-        </RouterLink>
-        <RouterLink :to="{ name: 'campaign-create' }" class="nav-link" active-class="active">
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M10 4v12M4 10h12" />
-          </svg>
-          Новая кампания
         </RouterLink>
       </nav>
 
@@ -46,15 +43,13 @@ const connection = computed(() => {
         <span v-if="health?.keitaro_url && health.keitaro === 'live'" class="tracker-url">
           {{ health.keitaro_url.replace(/^https?:\/\//, '') }}
         </span>
-        <span v-if="health?.campaign_name_prefix" class="tracker-url">
-          префикс: <code>{{ health.campaign_name_prefix }}</code>
-        </span>
       </div>
     </aside>
 
     <main class="main">
       <RouterView v-slot="{ Component, route }">
-        <component :is="Component" :key="route.fullPath" />
+        <!-- ключ — путь без query: поиск и страницы в ?q=&page= не пересоздают страницу -->
+        <component :is="Component" :key="route.path" />
       </RouterView>
     </main>
 
@@ -101,12 +96,6 @@ const connection = computed(() => {
   display: block;
   font-size: 14px;
   line-height: 1.2;
-}
-.brand small {
-  color: var(--sidebar-muted);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .nav {
@@ -168,7 +157,7 @@ const connection = computed(() => {
 
 @media (max-width: 860px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
     position: static;
@@ -181,9 +170,6 @@ const connection = computed(() => {
   }
   .brand {
     padding: 0;
-  }
-  .brand small {
-    display: none;
   }
   .nav {
     flex-direction: row;

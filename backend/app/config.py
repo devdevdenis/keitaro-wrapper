@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     keitaro_timeout: float = 15.0
 
     # Правила создания кампаний
-    campaign_name_prefix: str = "test_volper_"
     google_redirect_url: str = "https://www.google.com"
     stream_redirect_action: str = "http"  # тип редиректа потока (HTTP 302)
     country_filter_name: str = "country"

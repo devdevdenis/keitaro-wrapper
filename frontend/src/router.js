@@ -11,15 +11,16 @@ const routes = [
   {
     path: '/campaigns/new',
     name: 'campaign-create',
-    component: () => import('@/views/CampaignCreateView.vue'),
+    component: () => import('@/views/CampaignView.vue'),
+    props: { id: null },
     meta: { title: 'Новая кампания' },
   },
   {
     path: '/campaigns/:id(\\d+)',
     name: 'campaign-edit',
-    component: () => import('@/views/CampaignEditView.vue'),
+    component: () => import('@/views/CampaignView.vue'),
     props: (route) => ({ id: Number(route.params.id) }),
-    meta: { title: 'Редактор кампании' },
+    meta: { title: 'Кампания' },
   },
   { path: '/:pathMatch(.*)*', redirect: { name: 'campaigns' } },
 ]

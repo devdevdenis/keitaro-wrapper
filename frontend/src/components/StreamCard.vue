@@ -1,152 +1,112 @@
 <script setup>
-import { computed, ref } from 'vue'
-import SearchSelect from '@/components/SearchSelect.vue'
-import { STREAM_TYPES, flag } from '@/utils/format'
+/**
+ * Карточка потока в редакторе: название, тип, удаление; при конфликте с Keitaro — сброс правок.
+ * Содержимое (таблица офферов) есть только у обычного потока.
+ * Неопубликованные изменения показывает раздел «Потоки» целиком, а не каждая карточка.
+ * Содержимое (поля перехватывающего потока или таблица офферов) — в слоте.
+ */
+import { computed, ref, watch } from 'vue'
+import AlertBox from '@/components/AlertBox.vue'
+import { STREAM_TYPES } from '@/utils/format'
 
 const props = defineProps({
   stream: { type: Object, required: true },
-  offersById: { type: Object, default: () => ({}) },
-  offerOptions: { type: Array, default: () => [] },
-  busy: { type: Boolean, default: false },
+  busy: { type: String, default: null }, // действие, которое сейчас выполняется
 })
-const emit = defineEmits(['add-offer', 'remove-offer'])
+const emit = defineEmits(['patch', 'cancel', 'delete'])
 
+const disabled = computed(() => Boolean(props.busy))
+// правится только поток с офферами; перехватывающие и прочие можно лишь удалить
+const editable = computed(() => props.stream.kind === 'regular')
 const typeMeta = computed(
-  () => STREAM_TYPES[props.stream.type] ?? { label: props.stream.type, tone: 'slate' },
+  () => STREAM_TYPES[props.stream.type] ?? { label: props.stream.type ?? '—', tone: 'slate' },
 )
-const editableOffers = computed(() => props.stream.schema === 'landings')
-const newOffer = ref(null)
 
-const availableOptions = computed(() => {
-  const used = new Set(props.stream.offers.map((o) => o.offer_id))
-  return props.offerOptions.filter((o) => !used.has(o.value))
-})
-
-function payloadList(filter) {
-  const value = filter.payload
-  if (Array.isArray(value)) return value
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : [value]
-    } catch {
-      return [value]
-    }
-  }
-  return value == null ? [] : [String(value)]
-}
-
-function add() {
-  if (!newOffer.value) return
-  emit('add-offer', newOffer.value)
-  newOffer.value = null
+// название правится на месте и уходит в черновик по Enter / потере фокуса
+const name = ref(props.stream.name)
+watch(
+  () => props.stream.name,
+  (value) => (name.value = value),
+)
+function saveName() {
+  if (name.value !== props.stream.name) emit('patch', { name: name.value })
 }
 </script>
 
 <template>
-  <article class="card stream" :class="`stream-${stream.type}`">
+  <article class="card stream" :aria-label="stream.name || 'Поток'">
     <header class="stream-head">
-      <span class="position mono">{{ stream.position ?? '—' }}</span>
+      <span class="position mono">{{ stream.position || '—' }}</span>
       <div class="titles">
-        <h3>{{ stream.name || `Поток #${stream.id}` }}</h3>
+        <input
+          v-if="editable"
+          v-model="name"
+          class="name-input"
+          maxlength="100"
+          placeholder="Название потока"
+          aria-label="Название потока"
+          :disabled="disabled"
+          @change="saveName"
+          @keydown.enter="$event.target.blur()"
+        />
+        <h3 v-else>{{ stream.name || 'Без названия' }}</h3>
         <div class="row meta">
           <span class="badge" :class="`tone-${typeMeta.tone}`">{{ typeMeta.label }}</span>
-          <span class="chip">schema: {{ stream.schema }}</span>
-          <span class="chip">id: {{ stream.id }}</span>
-          <span v-if="stream.state !== 'active'" class="badge tone-slate">{{ stream.state }}</span>
+          <span v-if="stream.keitaro_id" class="chip">id: {{ stream.keitaro_id }}</span>
         </div>
       </div>
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm btn-danger icon-btn"
+        title="Удалить поток"
+        :aria-label="`Удалить поток ${stream.name}`"
+        :disabled="disabled"
+        @click="emit('delete')"
+      >
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10M9 9v4M11 9v4" />
+        </svg>
+      </button>
     </header>
 
-    <div class="stream-body">
-      <div v-if="stream.filters.length" class="block">
-        <span class="block-label">Фильтры</span>
-        <div class="row wrap">
-          <span v-for="f in stream.filters" :key="f.id ?? f.name" class="filter">
-            <span class="faint">{{ f.name }}</span>
-            <span :class="f.mode === 'reject' ? 'neg' : 'pos'">
-              {{ f.mode === 'reject' ? '≠' : '=' }}
-            </span>
-            <span v-for="v in payloadList(f)" :key="v">
-              {{ f.name === 'country' ? flag(v) : '' }} {{ v }}
-            </span>
-          </span>
-        </div>
-      </div>
-
-      <div v-if="stream.schema === 'redirect'" class="block">
-        <span class="block-label">Редирект ({{ stream.action_type }})</span>
-        <a
-          v-if="typeof stream.action_payload === 'string'"
-          :href="stream.action_payload"
-          target="_blank"
-          rel="noreferrer"
-          class="mono"
-        >
-          {{ stream.action_payload }}
-        </a>
-      </div>
-
-      <div v-if="editableOffers" class="block">
-        <span class="block-label">Офферы</span>
-        <ul class="offers">
-          <li v-for="o in stream.offers" :key="o.offer_id">
-            <span class="chip">#{{ o.offer_id }}</span>
-            <span class="offer-name">
-              {{ offersById[o.offer_id]?.name ?? 'Неизвестный оффер' }}
-            </span>
-            <span class="share-bar" :title="`${o.share}%`">
-              <span :style="{ width: `${o.share}%` }" />
-            </span>
-            <span class="share mono">{{ o.share }}%</span>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-danger"
-              :disabled="busy || stream.offers.length <= 1"
-              :title="stream.offers.length <= 1 ? 'В потоке должен остаться хотя бы один оффер' : ''"
-              @click="emit('remove-offer', o.offer_id)"
-            >
-              Удалить
-            </button>
-          </li>
-          <li v-if="!stream.offers.length" class="faint">Офферов нет</li>
-        </ul>
-
-        <div class="add-offer">
-          <SearchSelect
-            v-model="newOffer"
-            :options="availableOptions"
-            placeholder="Добавить оффер…"
-            :disabled="busy || !availableOptions.length"
-          />
-          <button type="button" class="btn" :disabled="busy || !newOffer" @click="add">
-            <span v-if="busy" class="spinner" /> Добавить
-          </button>
-        </div>
-      </div>
+    <!-- у перехватывающих и прочих потоков — только заголовок, без лишних данных -->
+    <div v-if="stream.kind === 'regular'" class="stream-content">
+      <slot />
     </div>
+
+    <div v-if="stream.problem" class="stream-problem">
+      <AlertBox :tone="stream.conflict ? 'red' : 'amber'">
+        {{ stream.problem }}
+        <!-- откат правок оставлен только для выхода из конфликта с Keitaro -->
+        <button
+          v-if="stream.conflict"
+          type="button"
+          class="btn btn-sm reset"
+          :disabled="disabled"
+          @click="emit('cancel')"
+        >
+          <span v-if="busy === 'cancel'" class="spinner" /> Взять версию из Keitaro
+        </button>
+      </AlertBox>
+    </div>
+
   </article>
 </template>
 
 <style scoped>
-.stream {
-  border-left: 3px solid var(--border-strong);
-}
-.stream-forced {
-  border-left-color: var(--amber);
-}
-.stream-regular {
-  border-left-color: var(--teal);
-}
+/* без overflow: hidden — иначе выпадающие списки внутри карточки обрезаются её краем */
 .stream-head {
   display: flex;
-  gap: 14px;
-  padding: 16px 20px 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  padding: 14px 16px 14px 20px;
 }
 .position {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  align-self: center;
   width: 30px;
   height: 30px;
   border-radius: 8px;
@@ -157,110 +117,71 @@ function add() {
 }
 .titles {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
 }
 h3 {
   font-size: 15px;
+  line-height: 30px;
+}
+.name-input {
+  width: 100%;
+  max-width: 420px;
+  height: 30px;
+  margin-left: -8px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  outline: none;
+}
+.name-input:hover {
+  border-color: var(--border);
+}
+.name-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .meta {
   flex-wrap: wrap;
   gap: 6px;
 }
-.stream-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px 20px 20px 64px;
-}
-.block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.block-label {
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.wrap {
-  flex-wrap: wrap;
-}
-.filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
-}
-.pos {
-  color: var(--green);
-  font-weight: 700;
-}
-.neg {
-  color: var(--red);
-  font-weight: 700;
-}
-.offers {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
+.icon-btn {
+  width: 30px;
   padding: 0;
-  list-style: none;
 }
-.offers li {
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.reset {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--border);
+  margin-top: 8px;
 }
-.offers li:last-child {
-  border-bottom: none;
+.stream-content {
+  border-top: 1px solid var(--border);
 }
-.offer-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.stream-problem {
+  padding: 0 20px 16px;
 }
-.share-bar {
-  width: 90px;
-  height: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--slate-soft);
-}
-.share-bar span {
-  display: block;
-  height: 100%;
-  background: var(--teal);
-}
-.share {
-  width: 40px;
-  color: var(--text-2);
-  text-align: right;
-}
-.add-offer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  max-width: 520px;
-}
-
 @media (max-width: 640px) {
-  .stream-body {
-    padding-left: 20px;
+  .stream-head {
+    padding: 12px 12px 12px 14px;
   }
-  .share-bar {
-    display: none;
+  .stream-problem {
+    padding: 0 14px 14px;
   }
 }
 </style>

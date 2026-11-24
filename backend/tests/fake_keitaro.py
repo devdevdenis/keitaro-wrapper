@@ -56,6 +56,12 @@ class FakeKeitaroClient:
     async def list_offers(self) -> list[JSON]:
         return copy.deepcopy(self.offers)
 
+    async def get_offer(self, offer_id: int) -> JSON:
+        for offer in self.offers:
+            if offer["id"] == offer_id:
+                return copy.deepcopy(offer)
+        raise KeitaroAPIError("Offer not found", status_code=404)
+
     # --- кампании ----------------------------------------------------------
 
     async def list_campaigns(self) -> list[JSON]:
@@ -86,6 +92,11 @@ class FakeKeitaroClient:
         self.campaigns[campaign_id] = campaign
         return copy.deepcopy(campaign)
 
+    async def update_campaign(self, campaign_id: int, payload: JSON) -> JSON:
+        campaign = self._campaign(campaign_id)
+        campaign.update(copy.deepcopy(payload))
+        return copy.deepcopy(campaign)
+
     async def delete_campaign(self, campaign_id: int) -> JSON:
         campaign = self._campaign(campaign_id)
         campaign["state"] = "deleted"
@@ -95,7 +106,11 @@ class FakeKeitaroClient:
 
     async def list_streams(self, campaign_id: int) -> list[JSON]:
         self._campaign(campaign_id)
-        streams = [s for s in self.streams.values() if s["campaign_id"] == campaign_id]
+        streams = [
+            s
+            for s in self.streams.values()
+            if s["campaign_id"] == campaign_id and s.get("state") != "deleted"
+        ]
         return copy.deepcopy(sorted(streams, key=lambda s: s.get("position", 0)))
 
     async def get_stream(self, stream_id: int) -> JSON:
@@ -128,8 +143,16 @@ class FakeKeitaroClient:
         data = copy.deepcopy(payload)
         if "offers" in data:
             data["offers"] = self._materialize_offers(stream_id, data["offers"])
+        if "filters" in data:
+            data["filters"] = [
+                {"id": i, "stream_id": stream_id, **f} for i, f in enumerate(data["filters"], 1)
+            ]
         stream.update(data)
         return copy.deepcopy(stream)
+
+    async def delete_stream(self, stream_id: int) -> JSON:
+        self._stream(stream_id)["state"] = "deleted"
+        return {"success": True}
 
     # --- helpers -----------------------------------------------------------
 

@@ -1,111 +1,56 @@
 # Keitaro Wrapper
 
-Обёртка над [Admin API](https://admin-api.docs.keitaro.io/) трекера Keitaro: создание кампаний и редактор офферов в потоках.
+Интерфейс для трекера Keitaro поверх его [Admin API](https://admin-api.docs.keitaro.io/): список
+кампаний, создание кампании с потоками и редактор потоков с публикацией в Keitaro.
 
-**Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Alembic · httpx — Vue 3 (Composition API) · Vite · Vue Router.
+Описание для пользователя — в [docs/](docs/README.md).
 
-## Возможности
+**Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Alembic — Vue 3 · Vite.
 
-Описание возможностей для пользователя — в [docs/](docs/README.md).
+## Запуск
 
-### 1. Создание кампании
+Нужны Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+ и Docker.
 
-Форма принимает **название**, **гео (код страны)** и **ID оффера**, а также **домен**, **группу** и
-**источник трафика** (списки подтягиваются из Keitaro API). Обёртка создаёт кампанию с двумя потоками:
+1. Установить зависимости и создать `backend/.env`:
 
-| # | Поток      | Тип Keitaro | Схема      | Что делает                                                  |
-|---|------------|-------------|------------|-------------------------------------------------------------|
-| 1 | Google     | `forced`    | `redirect` | Фильтр `country = <гео>` → HTTP-редирект на `google.com`    |
-| 2 | Offer      | `regular`   | `landings` | Весь остальной трафик → выбранный оффер (100%)              |
+   ```bash
+   make install
+   ```
 
-- К названию автоматически добавляется префикс `test_volper_` (`campaign1` → `test_volper_campaign1`).
-  Префикс задаётся в `CAMPAIGN_NAME_PREFIX`.
-- Alias кампании генерируется случайно, ссылка: `https://<домен>/<alias>`.
-- Если поток создать не удалось, кампания отправляется в архив, чтобы в трекере не оставалось «полуготовых» кампаний.
-- Созданная кампания сохраняется в локальной БД (таблица `campaigns`).
+2. Указать в `backend/.env` адрес трекера и ключ Admin API (Maintenance → Users → Admin API keys):
 
-### 2. Редактор кампании (шаблон)
+   ```dotenv
+   KEITARO_URL=https://your-tracker.com
+   KEITARO_API_KEY=...
+   ```
 
-Показывает потоки кампании (фильтры, редирект, офферы) и умеет **добавлять и удалять офферы** в
-потоках со схемой `landings`. Сейчас доли трафика делятся поровну; конкретные правила будут позже.
+3. Поднять PostgreSQL и применить миграции:
 
-## Быстрый старт (локально)
+   ```bash
+   make db migrate
+   ```
 
-Нужны: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+, Docker (для PostgreSQL).
+4. Заполнить справочник стран (из него выбирается гео при создании кампании):
 
-> `make` сам ищет `uv` в `~/.local/bin` и `~/.cargo/bin`, поэтому команды работают и в терминале
-> IDE (например, кнопка Run в README в PhpStorm). Чтобы вызывать `uv` напрямую, добавьте его в PATH:
-> `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc`.
+   ```bash
+   make fixtures
+   ```
 
-Установить зависимости бэкенда и фронта и создать `backend/.env` из примера:
+5. Запустить API (http://localhost:8000, Swagger — `/docs`):
 
-```bash
-make install
-```
+   ```bash
+   make backend
+   ```
 
-Пропишите доступ к трекеру в `backend/.env` (адрес без `/admin_api/v1`, ключ —
-Maintenance → Users → Admin API keys):
+6. В другом терминале запустить UI (http://localhost:5173):
 
-```dotenv
-KEITARO_URL=https://your-tracker.com
-KEITARO_API_KEY=...
-```
+   ```bash
+   make frontend
+   ```
 
-Поднять PostgreSQL 17 (контейнер `db` из `docker-compose.yml`, `localhost:5432`, keitaro / keitaro):
+### Всё в Docker
 
-```bash
-make db
-```
-
-Создать таблицы:
-
-```bash
-make migrate
-```
-
-Загрузить справочник стран:
-
-```bash
-make fixtures
-```
-
-Запустить API — http://localhost:8000, Swagger — http://localhost:8000/docs:
-
-```bash
-make backend
-```
-
-В другом терминале запустить UI — http://localhost:5173 (`/api` проксируется на бэкенд,
-см. `vite.config.js`):
-
-```bash
-make frontend
-```
-
-Без `make` — те же команды вручную:
-
-```bash
-docker compose up -d --wait db
-```
-
-```bash
-cd backend
-uv sync
-cp .env.example .env
-uv run alembic upgrade head
-uv run python -m app.fixtures
-uv run uvicorn app.main:app --reload
-```
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-## Запуск в Docker
-
-Скопируйте пример настроек и заполните `KEITARO_URL` / `KEITARO_API_KEY`:
+Создать `backend/.env`, заполнить его, как в шаге 2, и запустить:
 
 ```bash
 cp backend/.env.example backend/.env
@@ -115,32 +60,13 @@ cp backend/.env.example backend/.env
 docker compose up --build
 ```
 
-- UI — http://localhost:8080 (nginx отдаёт статику и проксирует `/api` в бэкенд)
-- API — http://localhost:8000/docs
-- БД — PostgreSQL 17 на `localhost:5432` (keitaro / keitaro). Миграции и фикстура стран
-  применяются при старте контейнера.
+UI — http://localhost:8080, API — http://localhost:8000/docs. Миграции и справочник стран
+применяются при старте.
 
-## Фикстуры БД
+## Тесты
 
-`backend/app/fixtures/data/countries.json` → таблица `countries`: 249 стран ISO 3166-1 alpha-2,
-из них выбирается гео при создании кампании.
-
-Загрузить справочник:
-
-```bash
-make fixtures
-```
-
-Очистить таблицы и загрузить заново:
-
-```bash
-make fixtures-reset
-```
-
-Загрузка идемпотентна: повторный запуск обновляет записи, а не дублирует их. В тестах справочник
-подключается через pytest-фикстуры из `backend/tests/conftest.py`.
-
-## Тесты и линтер
+Нужен запущенный PostgreSQL (`make db`). Тесты работают в отдельной базе и к настоящему трекеру не
+обращаются.
 
 ```bash
 make test
@@ -150,52 +76,6 @@ make test
 make lint
 ```
 
-Для тестов нужен запущенный PostgreSQL (`make db`). Они работают в отдельной базе
-`keitaro_wrapper_test` (`TEST_DATABASE_URL`), которая создаётся автоматически; схема
-пересоздаётся перед каждым тестом, основная база не затрагивается.
-
-К настоящему трекеру тесты не обращаются: Keitaro подменяется заглушкой из
-`backend/tests/fake_keitaro.py`.
-
-## Настройки (`backend/.env`)
-
-| Переменная               | По умолчанию                              | Описание                                   |
-|--------------------------|-------------------------------------------|--------------------------------------------|
-| `DATABASE_URL`           | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper` | Основная база |
-| `TEST_DATABASE_URL`      | `postgresql+asyncpg://keitaro:keitaro@localhost:5432/keitaro_wrapper_test` | База для pytest |
-| `KEITARO_URL`            | —                                         | Адрес трекера                              |
-| `KEITARO_API_KEY`        | —                                         | Admin API key                              |
-| `CAMPAIGN_NAME_PREFIX`   | `test_volper_`                            | Префикс названий кампаний                  |
-| `GOOGLE_REDIRECT_URL`    | `https://www.google.com`                  | Куда уводит поток №1                       |
-| `STREAM_REDIRECT_ACTION` | `http`                                    | Тип редиректа потока (`action_type`)       |
-| `COUNTRY_FILTER_NAME`    | `country`                                 | Имя фильтра страны в Keitaro               |
-| `CORS_ORIGINS`           | `["http://localhost:5173"]`               | Разрешённые origin для фронта              |
-
-## API
-
-| Метод    | Путь                                      | Описание                                   |
-|----------|-------------------------------------------|--------------------------------------------|
-| `GET`    | `/api/health`                             | Статус и режим подключения к Keitaro       |
-| `GET`    | `/api/countries`                          | Справочник стран (из БД)                   |
-| `GET`    | `/api/keitaro/domains`                    | Домены                                     |
-| `GET`    | `/api/keitaro/groups`                     | Группы кампаний                            |
-| `GET`    | `/api/keitaro/traffic-sources`            | Источники трафика                          |
-| `GET`    | `/api/keitaro/offers`                     | Офферы                                     |
-| `GET`    | `/api/campaigns?mine=true`                | Кампании (по умолчанию — только с префиксом)|
-| `POST`   | `/api/campaigns`                          | Создать кампанию с двумя потоками          |
-| `GET`    | `/api/campaigns/{id}`                     | Кампания + потоки                          |
-| `POST`   | `/api/streams/{id}/offers`                | Добавить оффер в поток                     |
-| `DELETE` | `/api/streams/{id}/offers/{offer_id}`     | Удалить оффер из потока                    |
-
-Пример создания кампании:
-
-```bash
-curl -X POST http://localhost:8000/api/campaigns \
-  -H 'Content-Type: application/json' \
-  -d '{"name": "campaign1", "country_code": "DE", "offer_id": 101,
-       "domain_id": 1, "group_id": 1, "traffic_source_id": 1}'
-```
-
 ## Структура
 
 ```
@@ -203,20 +83,29 @@ backend/
   app/
     main.py              # FastAPI-приложение, обработчики ошибок Keitaro
     config.py            # настройки (pydantic-settings)
-    db.py, models.py     # SQLAlchemy: countries, campaigns
+    db.py, models.py     # SQLAlchemy: countries, campaigns, stream_states (потоки редактора)
     schemas.py           # Pydantic-схемы
     keitaro/
       client.py          # httpx-клиент Admin API v1
-      payloads.py        # сборка тел запросов (кампания, потоки, доли офферов)
-    services/campaigns.py# бизнес-логика создания и редактирования
-    api/routes/          # эндпоинты
+      payloads.py        # сборка тел запросов: кампания, офферы потока
+    services/
+      campaigns.py       # создание, правка и удаление кампании
+      stream_editor.py   # потоки: сверка с Keitaro, черновики, Push to KT, Cancel, удаление
+      stream_spec.py     # поток в редакторе: виды, шаблоны, проверка, тело запроса в Keitaro
+      offer_shares.py    # офферы потока: пересчёт долей, сверка с Keitaro
+      offers.py          # проверка оффера в Keitaro
+      errors.py          # ServiceError → {"detail": …}
+    api/routes/          # эндпоинты: campaigns, streams, dictionaries, meta
     fixtures/            # JSON-фикстуры и CLI загрузки
   alembic/               # миграции
   tests/                 # pytest + заглушка Keitaro для тестов
 frontend/
   src/
     api/                 # fetch-клиент
-    composables/         # useAsync, useDictionaries, useHealth, useToast
-    components/          # SearchSelect, StreamCard, FlowPreview, …
-    views/               # список, создание, редактор кампании
+    composables/         # useAsync, useDictionaries, useDeleteCampaign, useHealth, useToast
+    components/          # StreamCard, OfferTable, StreamsOverview,
+                         # SearchSelect, TablePagination, ConfirmDialog, …
+    views/
+      CampaignsView.vue  # список кампаний
+      CampaignView.vue   # страница кампании: создание, параметры, схема, потоки
 ```

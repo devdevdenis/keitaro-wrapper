@@ -21,6 +21,8 @@
   --green-soft: #e8f6ec;
   --red: #b91c1c;
   --red-soft: #fdecec;
+  --blue: #1d4ed8;
+  --blue-soft: #e8effd;
   --slate: #5b6370;
   --slate-soft: #eef0f3;
 
@@ -38,43 +40,6 @@
   --mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace;
 
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1115;
-    --surface: #161a20;
-    --surface-2: #1b2027;
-    --border: #262c35;
-    --border-strong: #353c47;
-    --text: #e8eaed;
-    --text-2: #a3aab5;
-    --text-3: #727a86;
-
-    --accent: #2dd4bf;
-    --accent-hover: #5eead4;
-    --accent-soft: #10302d;
-    --accent-text: #06201d;
-
-    --amber: #fbbf24;
-    --amber-soft: #33270f;
-    --teal: #2dd4bf;
-    --teal-soft: #10302d;
-    --green: #4ade80;
-    --green-soft: #0f2c1a;
-    --red: #f87171;
-    --red-soft: #3a1717;
-    --slate: #a3aab5;
-    --slate-soft: #222831;
-
-    --sidebar: #0a0c0f;
-    --sidebar-active: #171c22;
-
-    --shadow: 0 1px 2px rgb(0 0 0 / 30%);
-    --shadow-lg: 0 12px 32px rgb(0 0 0 / 45%);
-
-    color-scheme: dark;
-  }
 }
 
 *,
@@ -167,6 +132,35 @@ code,
   background: var(--red-soft);
   color: var(--red);
 }
+/* мягкие цветные кнопки для действий в шапке страницы */
+.btn-soft {
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.btn-soft:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+.btn-soft-danger {
+  border-color: color-mix(in srgb, var(--red) 25%, transparent);
+  background: var(--red-soft);
+  color: var(--red);
+}
+.btn-soft-danger:hover {
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+  background: color-mix(in srgb, var(--red) 16%, var(--surface));
+}
+.btn .icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .btn-sm {
   height: 30px;
   padding: 0 10px;
@@ -228,6 +222,15 @@ code,
 .input::placeholder {
   color: var(--text-3);
 }
+select.input {
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 8l4 4 4-4' fill='none' stroke='%238a919c' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-position: right 9px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  cursor: pointer;
+}
 
 /* --- бейджи ------------------------------------------------------------ */
 .badge {
@@ -262,6 +265,10 @@ code,
 .tone-teal {
   background: var(--teal-soft);
   color: var(--teal);
+}
+.tone-blue {
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 .tone-red {
   background: var(--red-soft);
@@ -314,6 +321,23 @@ code,
 }
 
 /* --- служебное --------------------------------------------------------- */
+/* текст только для скринридеров; не раздвигает страницу (раньше вылезал за край на телефоне) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* обёртка таблицы: своя прокрутка по горизонтали, страницу не раздвигает */
+.table-wrap {
+  position: relative;
+  overflow-x: auto;
+}
 .muted {
   color: var(--text-2);
 }

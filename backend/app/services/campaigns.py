@@ -1,44 +1,45 @@
-"""Бизнес-логика: создание кампаний и редактирование офферов в потоках."""
+"""Кампании: создание (сразу с двумя потоками), правка параметров, удаление."""
 
 import logging
 from contextlib import suppress
+from dataclasses import replace
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.keitaro import KeitaroAPI, KeitaroError
 from app.keitaro import payloads as p
 from app.keitaro.client import JSON
-from app.models import Campaign, Country
-from app.schemas import CampaignCreate
+from app.models import Campaign, StreamState
+from app.schemas import CampaignCreate, CampaignIn
+from app.services import stream_editor
+from app.services import stream_spec as specs
+from app.services.offer_shares import Offer
+from app.services.offers import ensure_offer_available
 
 logger = logging.getLogger(__name__)
 
 
-class ServiceError(Exception):
-    def __init__(self, message: str, status_code: int = 400):
-        super().__init__(message)
-        self.message = message
-        self.status_code = status_code
-
-
 async def create_campaign(
     data: CampaignCreate, *, keitaro: KeitaroAPI, session: AsyncSession, settings: Settings
-) -> tuple[Campaign, list[JSON]]:
-    """Создаёт кампанию в Keitaro с двумя потоками и сохраняет локальную запись.
+) -> JSON:
+    """Создаёт кампанию в Keitaro сразу с двумя потоками (по ТЗ) и сохраняет локальную запись.
 
+    0. Проверки до создания — чтобы не создавать и не откатывать кампанию: страны есть в
+       справочнике, оффер есть в Keitaro и не в архиве.
     1. Кампания с доменом, группой и источником.
-    2. Поток forced: страна == country_code → редирект на Google.
-    3. Поток regular: остальной трафик → выбранный оффер.
-    Если потоки создать не удалось — кампания отправляется в архив (откат).
+    2. Flow 1 — перехватывающий: страна из списка → редирект на GOOGLE_REDIRECT_URL.
+    3. Flow 2 — обычный: весь остальной трафик → выбранный оффер (100 %).
+    Если поток создать не удалось — кампания отправляется в архив (откат).
+    Дальше потоки правятся в редакторе как обычно.
     """
-    if await session.get(Country, data.country_code) is None:
-        raise ServiceError(f"Неизвестный код страны: {data.country_code}", status_code=422)
+    await stream_editor.ensure_countries_known(session, data.country_codes)
+    await ensure_offer_available(keitaro, data.offer_id)
 
     campaign = await keitaro.create_campaign(
         p.campaign_payload(
-            name=p.campaign_name(data.name, settings.campaign_name_prefix),
+            name=data.name,
             alias=p.generate_alias(),
             domain_id=data.domain_id,
             group_id=data.group_id,
@@ -47,39 +48,65 @@ async def create_campaign(
     )
     campaign_id = int(campaign["id"])
 
+    intercept = replace(
+        specs.template("intercept", "Flow 1", settings), countries=tuple(data.country_codes)
+    )
+    regular = specs.template("regular", "Flow 2", settings).with_offers([Offer(data.offer_id, 100)])
+    streams = []
     try:
-        google_stream = await keitaro.create_stream(
-            p.google_stream_payload(
-                campaign_id=campaign_id, country_code=data.country_code, settings=settings
+        for position, spec in enumerate([intercept, regular], start=1):
+            payload = specs.to_keitaro(spec, None, settings)
+            streams.append(
+                await keitaro.create_stream(
+                    {**payload, "campaign_id": campaign_id, "position": position}
+                )
             )
-        )
-        offer_stream = await keitaro.create_stream(
-            p.offer_stream_payload(
-                campaign_id=campaign_id, offer_id=data.offer_id, settings=settings
-            )
-        )
     except KeitaroError:
         logger.warning("Не удалось создать потоки, архивируем кампанию %s", campaign_id)
         with suppress(KeitaroError):
             await keitaro.delete_campaign(campaign_id)
         raise
 
-    record = Campaign(
-        keitaro_id=campaign_id,
-        alias=campaign["alias"],
-        name=campaign["name"],
-        country_code=data.country_code,
-        offer_id=data.offer_id,
-        domain_id=data.domain_id,
-        group_id=data.group_id,
-        traffic_source_id=data.traffic_source_id,
-        google_stream_id=google_stream.get("id"),
-        offer_stream_id=offer_stream.get("id"),
+    session.add(
+        Campaign(
+            keitaro_id=campaign_id,
+            alias=campaign["alias"],
+            name=campaign["name"],
+            domain_id=data.domain_id,
+            group_id=data.group_id,
+            traffic_source_id=data.traffic_source_id,
+        )
     )
-    session.add(record)
     await session.commit()
-    await session.refresh(record)
-    return record, [google_stream, offer_stream]
+    # потоки сразу появляются в редакторе (и гео — в списке кампаний)
+    await stream_editor.sync_campaign(session, campaign_id, streams, settings)
+    return campaign
+
+
+async def update_campaign(
+    campaign_id: int, data: CampaignIn, *, keitaro: KeitaroAPI, session: AsyncSession
+) -> JSON:
+    """Сохраняет параметры кампании сразу в Keitaro (PUT /campaigns/{id})."""
+    campaign = await keitaro.update_campaign(campaign_id, data.model_dump())
+    record = await get_record(session, campaign_id)
+    if record is not None:
+        for key, value in data.model_dump().items():
+            setattr(record, key, value)
+        await session.commit()
+    if not campaign or "id" not in campaign:
+        campaign = await keitaro.get_campaign(campaign_id)
+    return campaign
+
+
+async def delete_campaign(session: AsyncSession, keitaro: KeitaroAPI, campaign_id: int) -> None:
+    """Удаляет кампанию: в Keitaro она уходит в архив (DELETE /campaigns/{id}).
+
+    Вместе с ней стираются локальная запись и потоки редактора (черновики и шаблоны).
+    """
+    await keitaro.delete_campaign(campaign_id)  # 404, если кампании нет
+    await session.execute(delete(Campaign).where(Campaign.keitaro_id == campaign_id))
+    await session.execute(delete(StreamState).where(StreamState.campaign_id == campaign_id))
+    await session.commit()
 
 
 async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:
@@ -90,34 +117,3 @@ async def get_record(session: AsyncSession, keitaro_id: int) -> Campaign | None:
 async def list_records(session: AsyncSession) -> dict[int, Campaign]:
     result = await session.execute(select(Campaign))
     return {c.keitaro_id: c for c in result.scalars()}
-
-
-# --- редактор офферов (шаблон; правила уточнятся) ---------------------------
-
-
-async def _offer_stream(keitaro: KeitaroAPI, stream_id: int) -> JSON:
-    stream = await keitaro.get_stream(stream_id)
-    if stream.get("schema") != "landings":
-        raise ServiceError("Офферы можно менять только в потоке со схемой «landings»")
-    return stream
-
-
-async def add_offer(keitaro: KeitaroAPI, stream_id: int, offer_id: int) -> JSON:
-    stream = await _offer_stream(keitaro, stream_id)
-    offer_ids = [int(o["offer_id"]) for o in stream.get("offers", [])]
-    if offer_id in offer_ids:
-        raise ServiceError("Этот оффер уже есть в потоке", status_code=409)
-    return await keitaro.update_stream(
-        stream_id, {"offers": p.rebalance_offers([*offer_ids, offer_id])}
-    )
-
-
-async def remove_offer(keitaro: KeitaroAPI, stream_id: int, offer_id: int) -> JSON:
-    stream = await _offer_stream(keitaro, stream_id)
-    offer_ids = [int(o["offer_id"]) for o in stream.get("offers", [])]
-    if offer_id not in offer_ids:
-        raise ServiceError("Оффера нет в потоке", status_code=404)
-    if len(offer_ids) == 1:
-        raise ServiceError("Нельзя удалить последний оффер из потока", status_code=409)
-    remaining = [o for o in offer_ids if o != offer_id]
-    return await keitaro.update_stream(stream_id, {"offers": p.rebalance_offers(remaining)})
