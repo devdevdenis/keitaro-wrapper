@@ -48,7 +48,8 @@ const connection = computed(() => {
 
     <main class="main">
       <RouterView v-slot="{ Component, route }">
-        <component :is="Component" :key="route.fullPath" />
+        <!-- ключ — путь без query: поиск и страницы в ?q=&page= не пересоздают страницу -->
+        <component :is="Component" :key="route.path" />
       </RouterView>
     </main>
 

@@ -25,8 +25,8 @@ from app.services.offers import ensure_offer_available
 from app.services.stream_spec import StreamSpec
 
 CONFLICT_MESSAGE = (
-    "Поток изменили в Keitaro, пока здесь были неопубликованные изменения. Отмените изменения "
-    "потока (значок ↺), чтобы увидеть актуальное состояние, и повторите свои изменения."
+    "Поток изменили в Keitaro, пока здесь были неопубликованные изменения. Нажмите «Взять версию "
+    "из Keitaro», чтобы увидеть актуальное состояние, и повторите свои изменения."
 )
 
 
@@ -220,6 +220,41 @@ async def restore_offer(
     return await _apply_offers(session, state, lambda offers: rules.restore_offer(offers, offer_id))
 
 
+async def forget_offer(session: AsyncSession, state_id: int, offer_id: int) -> StreamState:
+    """Убирает удалённый оффер из списка насовсем (кнопка × рядом с Bring Back).
+
+    Если в Keitaro оффера уже нет, он пропадает и из сверенного состояния — публиковать нечего.
+    Если он ещё стоит в Keitaro (удалён только в черновике), он уйдёт оттуда по Push to KT.
+    """
+    state = await _offer_state(session, state_id)
+    saved = specs.load(state.saved)
+    draft = specs.load(state.draft)
+    offer = next((o for o in (draft or saved).offers if o.offer_id == offer_id), None)
+    if offer is None:
+        raise ServiceError(f"Оффера #{offer_id} нет в потоке", status_code=404)
+    if not offer.removed:
+        raise ServiceError("Убрать из списка можно только удалённый оффер", status_code=409)
+
+    def drop(spec: StreamSpec) -> StreamSpec:
+        return spec.with_offers([o for o in spec.offers if o.offer_id != offer_id])
+
+    in_keitaro = saved is not None and any(
+        o.offer_id == offer_id and not o.removed for o in saved.offers
+    )
+    if saved is not None and not in_keitaro:
+        saved = drop(saved)
+        state.saved = saved.to_json()
+    if draft is not None:
+        updated = drop(draft)
+        if updated == saved:
+            state.draft = None
+            state.draft_base = None
+        else:
+            state.draft = updated.to_json()
+    await session.commit()
+    return state
+
+
 async def pin_offer(
     session: AsyncSession, state_id: int, offer_id: int, pinned: bool
 ) -> StreamState:
@@ -292,7 +327,7 @@ async def push_campaign(
         names = ", ".join(f"«{specs.load(s.draft).name}»" for s in conflicts)
         raise ServiceError(
             f"Потоки изменили в Keitaro, пока здесь были неопубликованные изменения: {names}. "
-            "Отмените изменения этих потоков (значок ↺), чтобы увидеть актуальное состояние, и "
+            "Нажмите у них «Взять версию из Keitaro», чтобы увидеть актуальное состояние, и "
             "повторите свои изменения.",
             status_code=409,
         )

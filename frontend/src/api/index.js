@@ -28,6 +28,9 @@ export const api = {
   removeStreamOffer: (streamId, offerId) => http.delete(`/streams/${streamId}/offers/${offerId}`),
   restoreStreamOffer: (streamId, offerId) =>
     http.post(`/streams/${streamId}/offers/${offerId}/restore`),
+  // × у удалённого оффера — убрать строку из списка насовсем
+  forgetStreamOffer: (streamId, offerId) =>
+    http.delete(`/streams/${streamId}/offers/${offerId}/row`),
   pinStreamOffer: (streamId, offerId, pinned) =>
     http.put(`/streams/${streamId}/offers/${offerId}/pin`, { pinned }),
   // Push to KT — черновики всех потоков кампании одной пачкой

@@ -19,6 +19,7 @@ import StreamsOverview from '@/components/StreamsOverview.vue'
 import { useAsync } from '@/composables/useAsync'
 import { useDeleteCampaign } from '@/composables/useDeleteCampaign'
 import { useDictionaries } from '@/composables/useDictionaries'
+import { useHealth } from '@/composables/useHealth'
 import { useToast } from '@/composables/useToast'
 import { flag, formatDate } from '@/utils/format'
 
@@ -27,8 +28,8 @@ const isNew = computed(() => props.id == null)
 
 const router = useRouter()
 const toast = useToast()
-const { dict, load, loading: dictLoading, error: dictError, domainsById, offersById } =
-  useDictionaries()
+const { dict, load, loading: dictLoading, error: dictError, offersById } = useDictionaries()
+const { health } = useHealth()
 load().catch(() => {})
 
 // каждое открытие и «Обновить» подтягивают изменения, сделанные напрямую в Keitaro
@@ -88,10 +89,13 @@ async function submit() {
   }
 }
 
-const domain = computed(() => domainsById.value[campaign.value?.domain_id])
-const campaignUrl = computed(() =>
-  domain.value && campaign.value ? `https://${domain.value.name}/${campaign.value.alias}` : null,
-)
+/** Кампания в админке Keitaro: <KEITARO_URL>/admin/#!/campaign/<id>/main */
+const keitaroUrl = computed(() => {
+  const base = health.value?.keitaro_url
+  return base && campaign.value
+    ? `${base.replace(/\/+$/, '')}/admin/#!/campaign/${campaign.value.id}/main`
+    : null
+})
 
 // --- потоки -----------------------------------------------------------------
 
@@ -113,6 +117,7 @@ const ACTIONS = {
   add: (id, offerId) => api.addStreamOffer(id, offerId),
   remove: (id, offerId) => api.removeStreamOffer(id, offerId),
   restore: (id, offerId) => api.restoreStreamOffer(id, offerId),
+  forget: (id, offerId) => api.forgetStreamOffer(id, offerId),
   pin: (id, offerId, pinned) => api.pinStreamOffer(id, offerId, pinned),
   cancel: (id) => api.cancelStreamDraft(id),
 }
@@ -234,8 +239,18 @@ const busyFor = (stream) =>
             <StateBadge :state="campaign.state" />
             <span class="chip">#{{ campaign.id }}</span>
             <span class="chip">alias: {{ campaign.alias }}</span>
-            <a v-if="campaignUrl" :href="campaignUrl" target="_blank" rel="noreferrer" class="mono">
-              {{ campaignUrl }}
+            <a
+              v-if="keitaroUrl"
+              :href="keitaroUrl"
+              target="_blank"
+              rel="noreferrer"
+              class="kt-link"
+              title="Открыть кампанию в Keitaro"
+              aria-label="Открыть кампанию в Keitaro"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M11 4h5v5M16 4l-7 7M14 11.5V15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3.5" />
+              </svg>
             </a>
             <span class="faint">создана {{ formatDate(campaign.created_at) }}</span>
           </span>
@@ -405,6 +420,7 @@ const busyFor = (stream) =>
                     @add="(offerId) => act(stream, 'add', offerId)"
                     @remove="(offerId) => act(stream, 'remove', offerId)"
                     @restore="(offerId) => act(stream, 'restore', offerId)"
+                @forget="(offerId) => act(stream, 'forget', offerId)"
                     @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
                   />
                   <p v-else class="other muted">
@@ -486,6 +502,29 @@ const busyFor = (stream) =>
 .wrap {
   flex-wrap: wrap;
   gap: 8px;
+}
+.kt-link {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+}
+.kt-link:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.kt-link svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .mb {
   margin-bottom: 16px;

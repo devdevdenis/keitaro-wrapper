@@ -275,6 +275,35 @@ async def test_removed_offer_stays_grey_after_push(client, keitaro, campaign, re
     assert rows(restored) == [(101, 50, "new"), (102, 50, "active")]
 
 
+async def test_forget_removed_offer(client, keitaro, campaign, regular):
+    sid, kid = regular["id"], regular["keitaro_id"]
+    await client.post(f"/api/streams/{sid}/offers", json={"offer_id": 102})
+    await client.post(f"/api/streams/{sid}/offers", json={"offer_id": 103})
+    await client.post(f"/api/streams/{sid}/push")
+
+    # удалён и опубликован — в Keitaro его нет: убираем из списка без черновика
+    await client.delete(f"/api/streams/{sid}/offers/101")
+    await client.post(f"/api/streams/{sid}/push")
+    forgotten = (await client.delete(f"/api/streams/{sid}/offers/101/row")).json()
+    assert [o["offer_id"] for o in forgotten["offers"]] == [102, 103]
+    assert forgotten["has_draft"] is False
+    assert [o["offer_id"] for o in (await stream_named(client, campaign, "Flow 2"))["offers"]] == [
+        102,
+        103,
+    ]
+
+    # удалён только в черновике — уйдёт из Keitaro по Push to KT
+    await client.delete(f"/api/streams/{sid}/offers/103")
+    edited = (await client.delete(f"/api/streams/{sid}/offers/103/row")).json()
+    assert rows(edited) == [(102, 100, "active")]
+    assert edited["has_draft"] is True
+    await client.post(f"/api/streams/{sid}/push")
+    assert in_keitaro(keitaro, kid) == [(102, 100)]
+
+    active = await client.delete(f"/api/streams/{sid}/offers/102/row")
+    assert active.status_code == 409
+
+
 async def test_cancel_discards_offer_draft(client, keitaro, regular):
     sid = regular["id"]
     await client.post(f"/api/streams/{sid}/offers", json={"offer_id": 102})

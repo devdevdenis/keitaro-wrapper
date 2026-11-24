@@ -1,6 +1,6 @@
 <script setup>
 /**
- * Карточка потока в редакторе: название, тип, отмена правок потока, удаление.
+ * Карточка потока в редакторе: название, тип, удаление; при конфликте с Keitaro — сброс правок.
  * Неопубликованные изменения показывает раздел «Потоки» целиком, а не каждая карточка.
  * Содержимое (поля перехватывающего потока или таблица офферов) — в слоте.
  */
@@ -75,21 +75,6 @@ function saveName() {
         </div>
       </div>
       <button
-        v-if="stream.has_draft && !stream.is_new"
-        type="button"
-        class="btn btn-ghost btn-sm icon-btn"
-        title="Отменить изменения потока"
-        :aria-label="`Отменить изменения потока ${stream.name}`"
-        :disabled="disabled"
-        @click="emit('cancel')"
-      >
-        <span v-if="busy === 'cancel'" class="spinner" />
-        <svg v-else viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M5 8h7a4 4 0 0 1 0 8H9" />
-          <path d="M8 5L5 8l3 3" />
-        </svg>
-      </button>
-      <button
         type="button"
         class="btn btn-ghost btn-sm btn-danger icon-btn"
         title="Удалить поток"
@@ -108,7 +93,19 @@ function saveName() {
     </div>
 
     <div v-if="stream.problem" class="stream-problem">
-      <AlertBox :tone="stream.conflict ? 'red' : 'amber'">{{ stream.problem }}</AlertBox>
+      <AlertBox :tone="stream.conflict ? 'red' : 'amber'">
+        {{ stream.problem }}
+        <!-- откат правок оставлен только для выхода из конфликта с Keitaro -->
+        <button
+          v-if="stream.conflict"
+          type="button"
+          class="btn btn-sm reset"
+          :disabled="disabled"
+          @click="emit('cancel')"
+        >
+          <span v-if="busy === 'cancel'" class="spinner" /> Взять версию из Keitaro
+        </button>
+      </AlertBox>
     </div>
 
   </article>
@@ -218,6 +215,10 @@ h3 {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.reset {
+  display: flex;
+  margin-top: 8px;
 }
 .stream-content {
   border-top: 1px solid var(--border);

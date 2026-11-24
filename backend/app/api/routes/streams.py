@@ -44,6 +44,12 @@ async def restore_offer(stream_id: int, offer_id: int, keitaro: KeitaroDep, sess
     return editor.view(await editor.restore_offer(session, keitaro, stream_id, offer_id))
 
 
+@router.delete("/offers/{offer_id}/row", response_model=StreamOut)
+async def forget_offer(stream_id: int, offer_id: int, session: SessionDep):
+    """× у удалённого оффера: убрать строку из списка насовсем (Bring Back больше не будет)."""
+    return editor.view(await editor.forget_offer(session, stream_id, offer_id))
+
+
 @router.put("/offers/{offer_id}/pin", response_model=StreamOut)
 async def pin_offer(stream_id: int, offer_id: int, data: StreamOfferPin, session: SessionDep):
     """Закрепить долю (pinned=true) или снять закрепление (pinned=false)."""

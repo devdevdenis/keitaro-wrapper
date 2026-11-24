@@ -12,7 +12,7 @@ const props = defineProps({
   offerOptions: { type: Array, default: () => [] },
   busy: { type: String, default: null },
 })
-const emit = defineEmits(['add', 'remove', 'restore', 'pin'])
+const emit = defineEmits(['add', 'remove', 'restore', 'forget', 'pin'])
 
 const disabled = computed(() => Boolean(props.busy))
 
@@ -26,8 +26,9 @@ function offerName(offerId) {
   return props.offersById[offerId]?.name ?? 'Неизвестный оффер'
 }
 
+/** «было N %» — только у незакреплённых: закреплённая доля при пересчётах не меняется */
 function shareChanged(offer) {
-  return offer.published_share !== null && offer.published_share !== offer.share
+  return !offer.pinned && offer.published_share !== null && offer.published_share !== offer.share
 }
 
 function add() {
@@ -85,15 +86,26 @@ function add() {
               <span v-if="shareChanged(o)" class="was faint">было {{ o.published_share }}%</span>
             </td>
             <td class="actions-col">
-              <button
-                v-if="o.removed"
-                type="button"
-                class="btn btn-sm"
-                :disabled="disabled"
-                @click="emit('restore', o.offer_id)"
-              >
-                Bring Back
-              </button>
+              <div v-if="o.removed" class="removed-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  :disabled="disabled"
+                  @click="emit('restore', o.offer_id)"
+                >
+                  Bring Back
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm btn-danger forget"
+                  title="Убрать из списка насовсем"
+                  :aria-label="`Убрать оффер #${o.offer_id} из списка`"
+                  :disabled="disabled"
+                  @click="emit('forget', o.offer_id)"
+                >
+                  ×
+                </button>
+              </div>
               <button
                 v-else
                 type="button"
@@ -147,8 +159,9 @@ function add() {
 }
 .offer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
 }
 .offer-name {
@@ -157,12 +170,30 @@ function add() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.share-col {
-  width: 170px;
+.offers th,
+.offers td {
+  padding-right: 12px;
+  padding-left: 12px;
 }
+.share-col {
+  width: 150px;
+}
+/* по содержимому: Remove или Bring Back + × */
 .actions-col {
-  width: 110px;
+  width: 1%;
+  white-space: nowrap;
   text-align: right;
+}
+.removed-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.forget {
+  width: 30px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
 }
 .share-cell {
   display: flex;
@@ -170,7 +201,7 @@ function add() {
   gap: 8px;
 }
 .share-bar {
-  width: 56px;
+  width: 48px;
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
@@ -192,7 +223,7 @@ function add() {
 }
 .was {
   display: block;
-  padding-left: 64px;
+  padding-left: 56px;
   font-size: 12px;
 }
 .pin {
