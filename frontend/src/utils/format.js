@@ -12,7 +12,7 @@ export function formatDate(value) {
 }
 
 export const STREAM_TYPES = {
-  forced: { label: 'Перехват', tone: 'amber' },
+  forced: { label: 'Перехватывающий', tone: 'amber' },
   regular: { label: 'Обычный', tone: 'teal' },
   default: { label: 'Резервный', tone: 'slate' },
 }

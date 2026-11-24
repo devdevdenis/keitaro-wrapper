@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import DateTime, String, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -33,30 +33,28 @@ class Campaign(TimestampMixin, Base):
     keitaro_id: Mapped[int] = mapped_column(unique=True, index=True)
     alias: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(255))
-    # гео: одна или несколько стран (коды из справочника countries), трафик из них — на Google
-    country_codes: Mapped[list[str]] = mapped_column(ARRAY(String(2)))
-    offer_id: Mapped[int]
     domain_id: Mapped[int]
     group_id: Mapped[int]
     traffic_source_id: Mapped[int]
-    google_stream_id: Mapped[int | None]
-    offer_stream_id: Mapped[int | None]
 
 
 class StreamState(TimestampMixin, Base):
-    """Состояние редактора офферов для потока Keitaro со схемой «landings».
+    """Поток кампании в редакторе (docs/campaign-editor.md).
 
-    offers — список офферов, сверенный с Keitaro при последнем открытии редактора: доли из
-    Keitaro, плюс удалённые офферы и закрепления, о которых Keitaro не знает.
-    draft — неопубликованные изменения (тот же формат); None — изменений нет.
-    draft_base — что стояло в Keitaro, когда начали правку (offer_shares.signature). Если
+    keitaro_id — поток в Keitaro; None — новый поток (шаблон), в Keitaro его ещё нет.
+    saved — поток, сверенный с Keitaro при последнем открытии редактора (stream_spec.StreamSpec):
+    всё из Keitaro плюс удалённые офферы и закрепления, о которых Keitaro не знает.
+    draft — неопубликованные изменения в том же формате; None — изменений нет.
+    draft_base — что стояло в Keitaro, когда начали правку (stream_spec.signature). Если
     Keitaro с тех пор поменялся, публикация черновика блокируется.
     """
 
     __tablename__ = "stream_states"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    keitaro_id: Mapped[int] = mapped_column(unique=True, index=True)
-    offers: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
-    draft: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
-    draft_base: Mapped[list[list[int]] | None] = mapped_column(JSONB)
+    campaign_id: Mapped[int] = mapped_column(index=True)  # кампания в Keitaro
+    keitaro_id: Mapped[int | None] = mapped_column(unique=True, index=True)
+    position: Mapped[int] = mapped_column(default=0)
+    saved: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    draft: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    draft_base: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

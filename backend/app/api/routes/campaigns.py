@@ -2,11 +2,11 @@ from fastapi import APIRouter, status
 
 from app.api.deps import KeitaroDep, SessionDep, SettingsDep
 from app.schemas import (
-    CampaignCreate,
-    CampaignCreated,
     CampaignDetail,
+    CampaignIn,
     CampaignRecord,
     CampaignSummary,
+    StreamCreate,
     StreamOut,
 )
 from app.services import campaigns as service
@@ -15,32 +15,58 @@ from app.services import stream_editor as editor
 router = APIRouter(tags=["campaigns"])
 
 
-def _summary(campaign: dict, record) -> dict:
-    data = dict(campaign)
-    if record is not None:
-        data.update(tracked=True, country_codes=record.country_codes, domain_id=record.domain_id)
-    return data
+def _summary(campaign: dict, *, tracked: bool, countries: list[str]) -> dict:
+    return {**campaign, "tracked": tracked, "country_codes": countries}
 
 
 @router.get("/campaigns", response_model=list[CampaignSummary])
 async def list_campaigns(keitaro: KeitaroDep, session: SessionDep):
     records = await service.list_records(session)
+    countries = await editor.published_countries(session)
     campaigns = await keitaro.list_campaigns()
     campaigns.sort(key=lambda c: c["id"], reverse=True)
-    return [_summary(c, records.get(c["id"])) for c in campaigns]
+    return [
+        _summary(c, tracked=c["id"] in records, countries=countries.get(c["id"], []))
+        for c in campaigns
+    ]
 
 
-@router.post("/campaigns", response_model=CampaignCreated, status_code=status.HTTP_201_CREATED)
+@router.post("/campaigns", response_model=CampaignSummary, status_code=status.HTTP_201_CREATED)
 async def create_campaign(
-    data: CampaignCreate, keitaro: KeitaroDep, session: SessionDep, settings: SettingsDep
+    data: CampaignIn, keitaro: KeitaroDep, session: SessionDep, settings: SettingsDep
 ):
-    record, streams = await service.create_campaign(
+    """Создать кампанию без потоков; в редакторе у неё появятся два шаблона потоков."""
+    campaign = await service.create_campaign(
         data, keitaro=keitaro, session=session, settings=settings
     )
-    return CampaignCreated(
-        record=CampaignRecord.model_validate(record),
-        streams=[StreamOut.model_validate(s) for s in streams],
-    )
+    return _summary(campaign, tracked=True, countries=[])
+
+
+@router.get("/campaigns/{campaign_id}", response_model=CampaignDetail)
+async def get_campaign(
+    campaign_id: int, keitaro: KeitaroDep, session: SessionDep, settings: SettingsDep
+):
+    campaign = await keitaro.get_campaign(campaign_id)
+    streams = await keitaro.list_streams(campaign_id)
+    record = await service.get_record(session, campaign_id)
+    # открытие редактора: подтягиваем изменения потоков, сделанные в Keitaro
+    states = await editor.sync_campaign(session, campaign_id, streams, settings)
+    return {
+        **_summary(campaign, tracked=record is not None, countries=editor.published_in(states)),
+        "streams": [editor.view(s) for s in states],
+        "record": CampaignRecord.model_validate(record) if record else None,
+    }
+
+
+@router.put("/campaigns/{campaign_id}", response_model=CampaignSummary)
+async def update_campaign(
+    campaign_id: int, data: CampaignIn, keitaro: KeitaroDep, session: SessionDep
+):
+    """Сохранить параметры кампании — сразу в Keitaro."""
+    campaign = await service.update_campaign(campaign_id, data, keitaro=keitaro, session=session)
+    record = await service.get_record(session, campaign_id)
+    countries = editor.published_in(await editor.campaign_streams(session, campaign_id))
+    return _summary(campaign, tracked=record is not None, countries=countries)
 
 
 @router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -49,15 +75,19 @@ async def delete_campaign(campaign_id: int, keitaro: KeitaroDep, session: Sessio
     await service.delete_campaign(session, keitaro, campaign_id)
 
 
-@router.get("/campaigns/{campaign_id}", response_model=CampaignDetail)
-async def get_campaign(campaign_id: int, keitaro: KeitaroDep, session: SessionDep):
-    campaign = await keitaro.get_campaign(campaign_id)
-    streams = await keitaro.list_streams(campaign_id)
-    record = await service.get_record(session, campaign_id)
-    # открытие редактора: подтягиваем изменения офферов, сделанные в Keitaro
-    states = await editor.sync_streams(session, streams)
-    return {
-        **_summary(campaign, record),
-        "streams": [editor.editor_stream(s, states.get(s["id"])) for s in streams],
-        "record": CampaignRecord.model_validate(record) if record else None,
-    }
+@router.post(
+    "/campaigns/{campaign_id}/streams",
+    response_model=StreamOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_stream(
+    campaign_id: int,
+    data: StreamCreate,
+    keitaro: KeitaroDep,
+    session: SessionDep,
+    settings: SettingsDep,
+):
+    """Новый поток Flow N — шаблон в черновике, в Keitaro он появится по Push to KT."""
+    await keitaro.get_campaign(campaign_id)  # 404, если кампании нет
+    state = await editor.add_stream(session, campaign_id, data.kind, settings)
+    return editor.view(state)

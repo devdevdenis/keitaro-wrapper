@@ -100,8 +100,6 @@ async def client(session_factory, keitaro) -> AsyncIterator[AsyncClient]:
 def campaign_form() -> dict:
     return {
         "name": "campaign1",
-        "country_codes": ["de"],
-        "offer_id": 101,
         "domain_id": 1,
         "group_id": 1,
         "traffic_source_id": 1,

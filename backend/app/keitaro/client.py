@@ -25,12 +25,14 @@ class KeitaroAPI(Protocol):
     async def list_campaigns(self) -> list[JSON]: ...
     async def get_campaign(self, campaign_id: int) -> JSON: ...
     async def create_campaign(self, payload: JSON) -> JSON: ...
+    async def update_campaign(self, campaign_id: int, payload: JSON) -> JSON: ...
     async def delete_campaign(self, campaign_id: int) -> JSON: ...
 
     async def list_streams(self, campaign_id: int) -> list[JSON]: ...
     async def get_stream(self, stream_id: int) -> JSON: ...
     async def create_stream(self, payload: JSON) -> JSON: ...
     async def update_stream(self, stream_id: int, payload: JSON) -> JSON: ...
+    async def delete_stream(self, stream_id: int) -> JSON: ...
 
     async def aclose(self) -> None: ...
 
@@ -96,6 +98,10 @@ class KeitaroClient:
     async def create_campaign(self, payload: JSON) -> JSON:
         return await self._request("POST", "/campaigns", json=payload)
 
+    async def update_campaign(self, campaign_id: int, payload: JSON) -> JSON:
+        """Меняет только переданные поля."""
+        return await self._request("PUT", f"/campaigns/{campaign_id}", json=payload)
+
     async def delete_campaign(self, campaign_id: int) -> JSON:
         """Перемещает кампанию в архив."""
         return await self._request("DELETE", f"/campaigns/{campaign_id}")
@@ -112,7 +118,12 @@ class KeitaroClient:
         return await self._request("POST", "/streams", json=payload)
 
     async def update_stream(self, stream_id: int, payload: JSON) -> JSON:
+        """Меняет только переданные поля; offers и filters заменяются списком целиком."""
         return await self._request("PUT", f"/streams/{stream_id}", json=payload)
+
+    async def delete_stream(self, stream_id: int) -> JSON:
+        """Удаляет поток (его можно восстановить в Keitaro)."""
+        return await self._request("DELETE", f"/streams/{stream_id}")
 
 
 def _to_api_error(response: httpx.Response) -> KeitaroAPIError:
