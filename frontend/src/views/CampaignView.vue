@@ -15,6 +15,7 @@ import RefreshIcon from '@/components/RefreshIcon.vue'
 import SearchSelect from '@/components/SearchSelect.vue'
 import StateBadge from '@/components/StateBadge.vue'
 import StreamCard from '@/components/StreamCard.vue'
+import StreamsOverview from '@/components/StreamsOverview.vue'
 import { useAsync } from '@/composables/useAsync'
 import { useDeleteCampaign } from '@/composables/useDeleteCampaign'
 import { useDictionaries } from '@/composables/useDictionaries'
@@ -165,6 +166,16 @@ async function deleteStream() {
     deletingStream.value = false
   }
 }
+/** Клик по потоку на схеме — прокрутка к его карточке с короткой подсветкой */
+function showStream(id) {
+  const card = document.getElementById(`stream-${id}`)
+  if (!card) return
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  card.classList.remove('flash')
+  void card.offsetWidth // перезапуск анимации
+  card.classList.add('flash')
+}
+
 const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.action : null)
 </script>
 
@@ -220,140 +231,160 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
         {{ dictError.message }}
       </AlertBox>
 
-      <form class="card" @submit.prevent="submit">
-        <div class="card-header"><h2>Параметры</h2></div>
-        <div class="card-body fields">
-          <label class="field span-2" for="campaign-name">
-            <span class="field-label">Название</span>
-            <input
-              id="campaign-name"
-              v-model="form.name"
-              class="input"
-              placeholder="Например, Nutra DE — Facebook"
-              autocomplete="off"
-              maxlength="100"
-            />
-            <span class="field-hint">Так кампания называется в Keitaro</span>
-          </label>
+      <div class="page-grid">
+        <aside class="side">
+          <form class="card" @submit.prevent="submit">
+            <div class="card-header"><h2>Параметры</h2></div>
+            <div class="card-body fields">
+              <label class="field span-2" for="campaign-name">
+                <span class="field-label">Название</span>
+                <input
+                  id="campaign-name"
+                  v-model="form.name"
+                  class="input"
+                  placeholder="Например, Nutra DE — Facebook"
+                  autocomplete="off"
+                  maxlength="100"
+                />
+                <span class="field-hint">Так кампания называется в Keitaro</span>
+              </label>
 
-          <div class="field">
-            <label class="field-label" for="campaign-domain">Домен</label>
-            <SearchSelect
-              id="campaign-domain"
-              v-model="form.domain_id"
-              :options="domainOptions"
-              :loading="dictLoading"
-              placeholder="Выберите домен"
-            />
+              <div class="field">
+                <label class="field-label" for="campaign-domain">Домен</label>
+                <SearchSelect
+                  id="campaign-domain"
+                  v-model="form.domain_id"
+                  :options="domainOptions"
+                  :loading="dictLoading"
+                  placeholder="Выберите домен"
+                />
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="campaign-group">Группа</label>
+                <SearchSelect
+                  id="campaign-group"
+                  v-model="form.group_id"
+                  :options="groupOptions"
+                  :loading="dictLoading"
+                  placeholder="Выберите группу"
+                />
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="campaign-source">Источник трафика</label>
+                <SearchSelect
+                  id="campaign-source"
+                  v-model="form.traffic_source_id"
+                  :options="sourceOptions"
+                  :loading="dictLoading"
+                  placeholder="Выберите источник"
+                />
+              </div>
+
+              <AlertBox
+                v-if="formError"
+                :title="isNew ? 'Кампания не создана' : 'Не удалось сохранить'"
+                class="span-2"
+              >
+                {{ formError.message }}
+              </AlertBox>
+            </div>
+
+            <div v-if="isNew || dirty" class="card-footer">
+              <button
+                v-if="isNew"
+                type="button"
+                class="btn btn-ghost"
+                @click="router.push({ name: 'campaigns' })"
+              >
+                Отмена
+              </button>
+              <button v-else type="button" class="btn btn-ghost" :disabled="saving" @click="resetForm">
+                Сбросить
+              </button>
+              <button type="submit" class="btn btn-primary" :disabled="!formValid || saving">
+                <span v-if="saving" class="spinner" />
+                {{ isNew ? 'Создать кампанию' : 'Сохранить' }}
+              </button>
+            </div>
+          </form>
+
+          <section class="card overview">
+            <div class="card-header"><h2>Схема</h2></div>
+            <div class="card-body">
+              <StreamsOverview
+                :campaign-name="isNew ? form.name.trim() : campaign.name"
+                :streams="streams"
+                :offers-by-id="offersById"
+                placeholder="Потоки появятся после создания кампании"
+                @select="showStream"
+              />
+            </div>
+          </section>
+        </aside>
+
+        <div class="main-col">
+          <div class="streams-head">
+            <h2>Потоки</h2>
+            <div v-if="!isNew" class="row">
+              <button
+                type="button"
+                class="btn btn-sm"
+                :disabled="!!adding"
+                @click="addStream('intercept')"
+              >
+                <span v-if="adding === 'intercept'" class="spinner" /> + Перехватывающий
+              </button>
+              <button type="button" class="btn btn-sm" :disabled="!!adding" @click="addStream('regular')">
+                <span v-if="adding === 'regular'" class="spinner" /> + Обычный
+              </button>
+            </div>
           </div>
 
-          <div class="field">
-            <label class="field-label" for="campaign-group">Группа</label>
-            <SearchSelect
-              id="campaign-group"
-              v-model="form.group_id"
-              :options="groupOptions"
-              :loading="dictLoading"
-              placeholder="Выберите группу"
-            />
+          <div v-if="isNew" class="card placeholder">
+            <p class="muted">Потоки станут доступны после создания кампании.</p>
           </div>
 
-          <div class="field">
-            <label class="field-label" for="campaign-source">Источник трафика</label>
-            <SearchSelect
-              id="campaign-source"
-              v-model="form.traffic_source_id"
-              :options="sourceOptions"
-              :loading="dictLoading"
-              placeholder="Выберите источник"
-            />
+          <div v-else class="streams">
+            <StreamCard
+              v-for="stream in streams"
+              :id="`stream-${stream.id}`"
+              :key="stream.id"
+              :stream="stream"
+              :busy="busyFor(stream)"
+              @patch="(patch) => act(stream, 'patch', patch)"
+              @push="act(stream, 'push')"
+              @cancel="act(stream, 'cancel')"
+              @delete="streamToDelete = stream"
+            >
+              <InterceptFields
+                v-if="stream.kind === 'intercept'"
+                :stream="stream"
+                :country-options="countryOptions"
+                :busy="busyFor(stream)"
+                @patch="(patch) => act(stream, 'patch', patch)"
+              />
+              <OfferTable
+                v-else-if="stream.kind === 'regular'"
+                :offers="stream.offers"
+                :offers-by-id="offersById"
+                :offer-options="offerOptions"
+                :busy="busyFor(stream)"
+                @add="(offerId) => act(stream, 'add', offerId)"
+                @remove="(offerId) => act(stream, 'remove', offerId)"
+                @restore="(offerId) => act(stream, 'restore', offerId)"
+                @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
+              />
+              <p v-else class="other muted">
+                Этот поток редактор не разбирает — его настройки меняются в Keitaro.
+              </p>
+            </StreamCard>
+
+            <div v-if="!streams.length" class="card placeholder">
+              <p class="muted">У кампании нет потоков — добавьте перехватывающий или обычный поток.</p>
+            </div>
           </div>
-
-          <AlertBox
-            v-if="formError"
-            :title="isNew ? 'Кампания не создана' : 'Не удалось сохранить'"
-            class="span-2"
-          >
-            {{ formError.message }}
-          </AlertBox>
-        </div>
-
-        <div v-if="isNew || dirty" class="card-footer">
-          <button
-            v-if="isNew"
-            type="button"
-            class="btn btn-ghost"
-            @click="router.push({ name: 'campaigns' })"
-          >
-            Отмена
-          </button>
-          <button v-else type="button" class="btn btn-ghost" :disabled="saving" @click="resetForm">
-            Сбросить
-          </button>
-          <button type="submit" class="btn btn-primary" :disabled="!formValid || saving">
-            <span v-if="saving" class="spinner" />
-            {{ isNew ? 'Создать кампанию' : 'Сохранить' }}
-          </button>
-        </div>
-      </form>
-
-      <div class="streams-head">
-        <h2>Потоки</h2>
-        <div v-if="!isNew" class="row">
-          <button
-            type="button"
-            class="btn btn-sm"
-            :disabled="!!adding"
-            @click="addStream('intercept')"
-          >
-            <span v-if="adding === 'intercept'" class="spinner" /> + Перехватывающий
-          </button>
-          <button type="button" class="btn btn-sm" :disabled="!!adding" @click="addStream('regular')">
-            <span v-if="adding === 'regular'" class="spinner" /> + Обычный
-          </button>
-        </div>
-      </div>
-
-      <div v-if="isNew" class="card placeholder">
-        <p class="muted">Потоки станут доступны после создания кампании.</p>
-      </div>
-
-      <div v-else class="streams">
-        <StreamCard
-          v-for="stream in streams"
-          :key="stream.id"
-          :stream="stream"
-          :busy="busyFor(stream)"
-          @patch="(patch) => act(stream, 'patch', patch)"
-          @push="act(stream, 'push')"
-          @cancel="act(stream, 'cancel')"
-          @delete="streamToDelete = stream"
-        >
-          <InterceptFields
-            v-if="stream.kind === 'intercept'"
-            :stream="stream"
-            :country-options="countryOptions"
-            :busy="busyFor(stream)"
-            @patch="(patch) => act(stream, 'patch', patch)"
-          />
-          <OfferTable
-            v-else-if="stream.kind === 'regular'"
-            :offers="stream.offers"
-            :offers-by-id="offersById"
-            :offer-options="offerOptions"
-            :busy="busyFor(stream)"
-            @add="(offerId) => act(stream, 'add', offerId)"
-            @remove="(offerId) => act(stream, 'remove', offerId)"
-            @restore="(offerId) => act(stream, 'restore', offerId)"
-            @pin="(offerId, pinned) => act(stream, 'pin', offerId, pinned)"
-          />
-          <p v-else class="other muted">
-            Этот поток редактор не разбирает — его настройки меняются в Keitaro.
-          </p>
-        </StreamCard>
-
-        <div v-if="!streams.length" class="card placeholder">
-          <p class="muted">У кампании нет потоков — добавьте перехватывающий или обычный поток.</p>
         </div>
       </div>
     </template>
@@ -411,10 +442,28 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
 h2 {
   font-size: 15px;
 }
+.page-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 20px;
+}
+/* левая колонка тянется на всю высоту, чтобы схема «прилипала» при прокрутке потоков */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.overview {
+  position: sticky;
+  top: 24px;
+}
+.main-col {
+  min-width: 0;
+}
 .fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
 }
 .span-2 {
   grid-column: 1 / -1;
@@ -434,7 +483,19 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 28px 0 12px;
+  min-height: 30px;
+  margin-bottom: 12px;
+}
+.streams-head h2 {
+  font-size: 17px;
+}
+.streams :deep(.flash) {
+  animation: flash 1.2s ease-out;
+}
+@keyframes flash {
+  from {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
 }
 .streams {
   display: flex;
@@ -453,9 +514,12 @@ h2 {
   padding: 14px 20px 16px;
 }
 
-@media (max-width: 860px) {
-  .fields {
+@media (max-width: 1080px) {
+  .page-grid {
     grid-template-columns: 1fr;
+  }
+  .overview {
+    position: static;
   }
 }
 </style>
