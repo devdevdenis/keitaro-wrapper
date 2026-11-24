@@ -24,19 +24,26 @@
    KEITARO_API_KEY=...
    ```
 
-3. Поднять PostgreSQL, применить миграции и загрузить справочник стран:
+3. Поднять PostgreSQL и применить миграции:
 
    ```bash
-   make db migrate fixtures
+   make db migrate
    ```
 
-4. Запустить API (http://localhost:8000, Swagger — `/docs`):
+4. *(Опционально)* Загрузить справочник стран — без него при создании кампании не из чего
+   выбрать гео:
+
+   ```bash
+   make fixtures
+   ```
+
+5. Запустить API (http://localhost:8000, Swagger — `/docs`):
 
    ```bash
    make backend
    ```
 
-5. В другом терминале запустить UI (http://localhost:5173):
+6. В другом терминале запустить UI (http://localhost:5173):
 
    ```bash
    make frontend
