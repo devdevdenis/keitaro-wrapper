@@ -127,16 +127,6 @@ def view(state: StreamState) -> StreamOut:
 # --- потоки: создание и удаление -------------------------------------------------
 
 
-async def add_templates(
-    session: AsyncSession, campaign_id: int, settings: Settings
-) -> list[StreamState]:
-    """Шаблоны новой кампании: Flow 1 — перехватывающий на Google, Flow 2 — обычный."""
-    return [
-        await add_stream(session, campaign_id, "intercept", settings),
-        await add_stream(session, campaign_id, "regular", settings),
-    ]
-
-
 async def add_stream(
     session: AsyncSession, campaign_id: int, kind: str, settings: Settings
 ) -> StreamState:
@@ -183,7 +173,7 @@ async def update_fields(
     if kind != "intercept" and changes.keys() & {"countries", "redirect_url"}:
         raise ServiceError("Страны и редирект задают у перехватывающего потока")
     if "countries" in changes:
-        await _ensure_countries_known(session, changes["countries"])
+        await ensure_countries_known(session, changes["countries"])
         changes["countries"] = tuple(changes["countries"])
 
     def change(spec: StreamSpec) -> StreamSpec:
@@ -476,7 +466,7 @@ async def _apply_offers(
     return await _apply(session, state, lambda spec: spec.with_offers(change(list(spec.offers))))
 
 
-async def _ensure_countries_known(session: AsyncSession, codes: list[str]) -> None:
+async def ensure_countries_known(session: AsyncSession, codes: list[str]) -> None:
     if not codes:
         return
     known = set(await session.scalars(select(Country.code).where(Country.code.in_(codes))))

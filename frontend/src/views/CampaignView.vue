@@ -59,7 +59,14 @@ function formChanged(base = campaign.value) {
   return FIELDS.some((key) => (key === 'name' ? form.name.trim() : form[key]) !== base?.[key])
 }
 const dirty = computed(() => !isNew.value && campaign.value && formChanged())
-const formValid = computed(() => form.name.trim() && FIELDS.every((key) => form[key]))
+// только при создании (по ТЗ): гео и оффер — из них сразу строятся два потока
+const streamsForm = reactive({ country_codes: [], offer_id: null })
+const formValid = computed(
+  () =>
+    form.name.trim() &&
+    FIELDS.every((key) => form[key]) &&
+    (!isNew.value || (streamsForm.country_codes.length && streamsForm.offer_id)),
+)
 
 const toOptions = (list) => list.map((i) => ({ value: i.id, label: i.name, hint: `#${i.id}` }))
 const domainOptions = computed(() => toOptions(dict.domains))
@@ -70,7 +77,8 @@ async function submit() {
   if (!formValid.value || saving.value) return
   saving.value = true
   formError.value = null
-  const data = { ...form, name: form.name.trim() }
+  const base = { ...form, name: form.name.trim() }
+  const data = isNew.value ? { ...base, ...streamsForm } : base
   try {
     if (isNew.value) {
       const created = await api.createCampaign(data)
@@ -105,6 +113,32 @@ const countryOptions = computed(() =>
 const offerOptions = computed(() =>
   dict.offers.map((o) => ({ value: o.id, label: o.name, hint: `#${o.id}` })),
 )
+
+/** Схема новой кампании: какие два потока будут созданы из формы */
+const previewStreams = computed(() => [
+  {
+    id: -1,
+    name: 'Flow 1',
+    kind: 'intercept',
+    type: 'forced',
+    position: 1,
+    countries: streamsForm.country_codes,
+    redirect_url: health.value?.google_redirect_url ?? 'https://www.google.com',
+    offers: [],
+  },
+  {
+    id: -2,
+    name: 'Flow 2',
+    kind: 'regular',
+    type: 'regular',
+    position: 2,
+    countries: [],
+    redirect_url: '',
+    offers: streamsForm.offer_id
+      ? [{ offer_id: streamsForm.offer_id, share: 100, removed: false }]
+      : [],
+  },
+])
 
 const streams = computed(() => campaign.value?.streams ?? [])
 
@@ -328,6 +362,35 @@ const busyFor = (stream) =>
               />
             </div>
 
+            <template v-if="isNew">
+              <div class="divider" />
+
+              <div class="field">
+                <label class="field-label" for="campaign-geo">Гео</label>
+                <SearchSelect
+                  id="campaign-geo"
+                  v-model="streamsForm.country_codes"
+                  multiple
+                  :options="countryOptions"
+                  :loading="dictLoading"
+                  placeholder="Выберите одну или несколько стран"
+                />
+                <span class="field-hint">Flow 1: трафик из этих стран уйдёт на Google</span>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="campaign-offer">Оффер</label>
+                <SearchSelect
+                  id="campaign-offer"
+                  v-model="streamsForm.offer_id"
+                  :options="offerOptions"
+                  :loading="dictLoading"
+                  placeholder="Найдите оффер по ID или названию"
+                />
+                <span class="field-hint">Flow 2: весь остальной трафик уйдёт на этот оффер</span>
+              </div>
+            </template>
+
             <AlertBox
               v-if="formError"
               :title="isNew ? 'Кампания не создана' : 'Не удалось сохранить'"
@@ -392,7 +455,9 @@ const busyFor = (stream) =>
 
           <div class="card-body streams-body">
             <p v-if="isNew" class="placeholder muted">
-              Потоки станут доступны после создания кампании.
+              Вместе с кампанией в Keitaro будут созданы два потока: Flow 1 — перехватывающий
+              (выбранные страны → Google) и Flow 2 — обычный (весь остальной трафик → оффер). После
+              создания их можно менять здесь.
             </p>
 
             <div v-else class="streams">
@@ -447,7 +512,7 @@ const busyFor = (stream) =>
             <div class="card-body">
               <StreamsOverview
                 :campaign-name="isNew ? form.name.trim() : campaign.name"
-                :streams="streams"
+                :streams="isNew ? previewStreams : streams"
                 :offers-by-id="offersById"
                 placeholder="Потоки появятся после создания кампании"
                 @select="showStream"
@@ -566,6 +631,10 @@ h2 {
 .overview {
   position: sticky;
   top: 24px;
+}
+.divider {
+  height: 1px;
+  background: var(--border);
 }
 .fields {
   display: grid;

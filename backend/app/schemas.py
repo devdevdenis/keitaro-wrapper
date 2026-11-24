@@ -70,6 +70,18 @@ class CampaignIn(BaseModel):
         return _clean_name(value)
 
 
+class CampaignCreate(CampaignIn):
+    """Создание кампании по ТЗ: кроме параметров — гео и оффер для двух потоков."""
+
+    country_codes: list[str] = Field(min_length=1, examples=[["DE"]])
+    offer_id: int = Field(gt=0)
+
+    @field_validator("country_codes")
+    @classmethod
+    def _countries(cls, value: list[str]) -> list[str]:
+        return normalize_countries(value)
+
+
 class CampaignRecord(ORMModel):
     """Локальная запись (таблица campaigns)."""
 

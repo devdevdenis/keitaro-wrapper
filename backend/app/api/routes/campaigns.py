@@ -2,6 +2,7 @@ from fastapi import APIRouter, status
 
 from app.api.deps import KeitaroDep, SessionDep, SettingsDep
 from app.schemas import (
+    CampaignCreate,
     CampaignDetail,
     CampaignIn,
     CampaignPushOut,
@@ -34,13 +35,13 @@ async def list_campaigns(keitaro: KeitaroDep, session: SessionDep):
 
 @router.post("/campaigns", response_model=CampaignSummary, status_code=status.HTTP_201_CREATED)
 async def create_campaign(
-    data: CampaignIn, keitaro: KeitaroDep, session: SessionDep, settings: SettingsDep
+    data: CampaignCreate, keitaro: KeitaroDep, session: SessionDep, settings: SettingsDep
 ):
-    """Создать кампанию без потоков; в редакторе у неё появятся два шаблона потоков."""
+    """Создать кампанию сразу с двумя потоками: страны → Google, остальное → оффер."""
     campaign = await service.create_campaign(
         data, keitaro=keitaro, session=session, settings=settings
     )
-    return _summary(campaign, tracked=True, countries=[])
+    return _summary(campaign, tracked=True, countries=data.country_codes)
 
 
 @router.get("/campaigns/{campaign_id}", response_model=CampaignDetail)

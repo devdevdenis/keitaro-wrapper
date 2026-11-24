@@ -1,25 +1,42 @@
-"""Кампании: создание, правка параметров, удаление. Потоки — services/stream_editor.py."""
+"""Кампании: создание (сразу с двумя потоками), правка параметров, удаление."""
+
+import logging
+from contextlib import suppress
+from dataclasses import replace
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.keitaro import KeitaroAPI
+from app.keitaro import KeitaroAPI, KeitaroError
 from app.keitaro import payloads as p
 from app.keitaro.client import JSON
 from app.models import Campaign, StreamState
-from app.schemas import CampaignIn
+from app.schemas import CampaignCreate, CampaignIn
 from app.services import stream_editor
+from app.services import stream_spec as specs
+from app.services.offer_shares import Offer
+from app.services.offers import ensure_offer_available
+
+logger = logging.getLogger(__name__)
 
 
 async def create_campaign(
-    data: CampaignIn, *, keitaro: KeitaroAPI, session: AsyncSession, settings: Settings
+    data: CampaignCreate, *, keitaro: KeitaroAPI, session: AsyncSession, settings: Settings
 ) -> JSON:
-    """Создаёт кампанию в Keitaro — без потоков — и сохраняет локальную запись.
+    """Создаёт кампанию в Keitaro сразу с двумя потоками (по ТЗ) и сохраняет локальную запись.
 
-    Потоки появляются в редакторе как шаблоны (Flow 1 — перехватывающий, Flow 2 — обычный) и
-    попадают в Keitaro, только когда их опубликуют.
+    0. Проверки до создания — чтобы не создавать и не откатывать кампанию: страны есть в
+       справочнике, оффер есть в Keitaro и не в архиве.
+    1. Кампания с доменом, группой и источником.
+    2. Flow 1 — перехватывающий: страна из списка → редирект на GOOGLE_REDIRECT_URL.
+    3. Flow 2 — обычный: весь остальной трафик → выбранный оффер (100 %).
+    Если поток создать не удалось — кампания отправляется в архив (откат).
+    Дальше потоки правятся в редакторе как обычно.
     """
+    await stream_editor.ensure_countries_known(session, data.country_codes)
+    await ensure_offer_available(keitaro, data.offer_id)
+
     campaign = await keitaro.create_campaign(
         p.campaign_payload(
             name=data.name,
@@ -30,6 +47,26 @@ async def create_campaign(
         )
     )
     campaign_id = int(campaign["id"])
+
+    intercept = replace(
+        specs.template("intercept", "Flow 1", settings), countries=tuple(data.country_codes)
+    )
+    regular = specs.template("regular", "Flow 2", settings).with_offers([Offer(data.offer_id, 100)])
+    streams = []
+    try:
+        for position, spec in enumerate([intercept, regular], start=1):
+            payload = specs.to_keitaro(spec, None, settings)
+            streams.append(
+                await keitaro.create_stream(
+                    {**payload, "campaign_id": campaign_id, "position": position}
+                )
+            )
+    except KeitaroError:
+        logger.warning("Не удалось создать потоки, архивируем кампанию %s", campaign_id)
+        with suppress(KeitaroError):
+            await keitaro.delete_campaign(campaign_id)
+        raise
+
     session.add(
         Campaign(
             keitaro_id=campaign_id,
@@ -41,7 +78,8 @@ async def create_campaign(
         )
     )
     await session.commit()
-    await stream_editor.add_templates(session, campaign_id, settings)
+    # потоки сразу появляются в редакторе (и гео — в списке кампаний)
+    await stream_editor.sync_campaign(session, campaign_id, streams, settings)
     return campaign
 
 
