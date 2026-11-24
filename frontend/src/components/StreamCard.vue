@@ -11,7 +11,7 @@ const props = defineProps({
   stream: { type: Object, required: true },
   busy: { type: String, default: null }, // действие, которое сейчас выполняется
 })
-const emit = defineEmits(['patch', 'push', 'cancel', 'delete'])
+const emit = defineEmits(['patch', 'cancel', 'delete'])
 
 const KINDS = [
   { value: 'intercept', label: 'Перехватывающий' },
@@ -101,23 +101,11 @@ function saveName() {
       <AlertBox :tone="stream.conflict ? 'red' : 'amber'">{{ stream.problem }}</AlertBox>
     </div>
 
-    <footer v-if="stream.has_draft" class="stream-footer">
-      <button
-        v-if="!stream.is_new"
-        type="button"
-        class="btn btn-ghost"
-        :disabled="disabled"
-        @click="emit('cancel')"
-      >
+    <!-- публикуются все потоки сразу (панель внизу карточки «Потоки»); здесь — откат одного -->
+    <footer v-if="stream.has_draft && !stream.is_new" class="stream-footer">
+      <span class="faint">Есть неопубликованные изменения</span>
+      <button type="button" class="btn btn-ghost btn-sm" :disabled="disabled" @click="emit('cancel')">
         <span v-if="busy === 'cancel'" class="spinner" /> Cancel
-      </button>
-      <button
-        type="button"
-        class="btn btn-primary"
-        :disabled="disabled || !stream.can_push"
-        @click="emit('push')"
-      >
-        <span v-if="busy === 'push'" class="spinner" /> Push to KT
       </button>
     </footer>
   </article>
@@ -264,9 +252,11 @@ h3 {
 }
 .stream-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 12px 20px;
+  padding: 8px 12px 8px 20px;
+  font-size: 13px;
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius) var(--radius);
   background: var(--amber-soft);

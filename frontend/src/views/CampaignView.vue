@@ -115,7 +115,6 @@ const ACTIONS = {
   remove: (id, offerId) => api.removeStreamOffer(id, offerId),
   restore: (id, offerId) => api.restoreStreamOffer(id, offerId),
   pin: (id, offerId, pinned) => api.pinStreamOffer(id, offerId, pinned),
-  push: (id) => api.pushStream(id),
   cancel: (id) => api.cancelStreamDraft(id),
 }
 
@@ -128,11 +127,8 @@ async function act(stream, action, ...args) {
   try {
     const updated = await ACTIONS[action](stream.id, ...args)
     setStreams(streams.value.map((s) => (s.id === stream.id ? updated : s)))
-    if (action === 'push') toast.success(`«${updated.name}»: опубликовано в Keitaro`)
   } catch (e) {
     toast.error(e.message)
-    // поток изменили в Keitaro — показываем актуальное состояние и блокировку публикации
-    if (action === 'push' && e.status === 409) refresh()
   } finally {
     busy.value = null
   }
@@ -180,7 +176,38 @@ function showStream(id) {
   card.classList.add('flash')
 }
 
-const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.action : null)
+// --- Push to KT: все черновики кампании одной пачкой ----------------------------
+
+const drafts = computed(() => streams.value.filter((s) => s.has_draft))
+/** потоки, из-за которых публикация недоступна: проблема в черновике или правки в Keitaro */
+const blockers = computed(() => drafts.value.filter((s) => !s.can_push))
+const pushing = ref(false)
+
+async function pushAll() {
+  pushing.value = true
+  try {
+    const result = await api.pushCampaign(props.id)
+    setStreams(result.streams)
+    if (result.failed_stream_id) {
+      const failed = result.streams.find((s) => s.id === result.failed_stream_id)
+      toast.error(
+        `Опубликовано потоков: ${result.published}. «${failed?.name}» — Keitaro ответил: ` +
+          `${result.error}. Он и следующие остались черновиками.`,
+      )
+    } else {
+      toast.success(`Опубликовано в Keitaro потоков: ${result.published}`)
+    }
+  } catch (e) {
+    toast.error(e.message)
+    // поток изменили в Keitaro — показываем актуальное состояние и что мешает публикации
+    if (e.status === 409) refresh()
+  } finally {
+    pushing.value = false
+  }
+}
+
+const busyFor = (stream) =>
+  pushing.value ? 'push' : busy.value?.streamId === stream.id ? busy.value.action : null
 </script>
 
 <template>
@@ -335,8 +362,7 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
                   :stream="stream"
                   :busy="busyFor(stream)"
                   @patch="(patch) => act(stream, 'patch', patch)"
-                  @push="act(stream, 'push')"
-                  @cancel="act(stream, 'cancel')"
+                      @cancel="act(stream, 'cancel')"
                   @delete="streamToDelete = stream"
                 >
                   <InterceptFields
@@ -369,6 +395,34 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
                 <span v-else class="plus" aria-hidden="true" />
                 Добавить поток
               </button>
+
+              <!-- прилипает к низу экрана, пока есть что публиковать -->
+              <div v-if="drafts.length" class="publish-bar" :class="{ blocked: blockers.length }">
+                <div class="publish-info">
+                  <strong>Не опубликовано потоков: {{ drafts.length }}</strong>
+                  <span v-if="blockers.length" class="publish-blockers">
+                    Сначала исправьте:
+                    <button
+                      v-for="s in blockers"
+                      :key="s.id"
+                      type="button"
+                      class="link-btn"
+                      @click="showStream(s.id)"
+                    >
+                      «{{ s.name || 'Без названия' }}»
+                    </button>
+                  </span>
+                  <span v-else class="faint">Изменения всех потоков уйдут в Keitaro вместе</span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  :disabled="pushing || !!busy || blockers.length > 0"
+                  @click="pushAll"
+                >
+                  <span v-if="pushing" class="spinner" /> Push to KT
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -517,6 +571,47 @@ h2 {
 .other {
   margin: 0;
   padding: 14px 20px 16px;
+}
+.publish-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  background: var(--amber-soft);
+  box-shadow: var(--shadow-lg);
+}
+.publish-bar.blocked {
+  border-color: color-mix(in srgb, var(--red) 50%, transparent);
+}
+.publish-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+.publish-blockers {
+  color: var(--red);
+}
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn + .link-btn {
+  margin-left: 4px;
 }
 /* «полоса с плюсиком» под последним потоком */
 .add-stream {

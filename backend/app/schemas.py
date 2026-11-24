@@ -162,6 +162,16 @@ class StreamOut(BaseModel):
     can_push: bool
 
 
+class CampaignPushOut(BaseModel):
+    """Итог Push to KT для кампании. failed_stream_id — поток, на котором Keitaro ответил
+    ошибкой: он и следующие остались черновиками, предыдущие уже опубликованы."""
+
+    published: int
+    failed_stream_id: int | None = None
+    error: str | None = None
+    streams: list[StreamOut]
+
+
 class CampaignDetail(CampaignSummary):
     streams: list[StreamOut] = Field(default_factory=list)
     record: CampaignRecord | None = None

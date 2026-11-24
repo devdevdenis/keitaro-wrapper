@@ -30,7 +30,8 @@ export const api = {
     http.post(`/streams/${streamId}/offers/${offerId}/restore`),
   pinStreamOffer: (streamId, offerId, pinned) =>
     http.put(`/streams/${streamId}/offers/${offerId}/pin`, { pinned }),
-  pushStream: (streamId) => http.post(`/streams/${streamId}/push`),
+  // Push to KT — черновики всех потоков кампании одной пачкой
+  pushCampaign: (campaignId) => http.post(`/campaigns/${campaignId}/push`),
   cancelStreamDraft: (streamId) => http.delete(`/streams/${streamId}/draft`),
 }
 

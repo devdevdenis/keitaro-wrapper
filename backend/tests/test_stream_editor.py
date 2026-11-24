@@ -409,3 +409,70 @@ async def test_push_without_draft(client, regular):
 async def test_unknown_stream(client):
     response = await client.post("/api/streams/999/offers", json={"offer_id": 101})
     assert response.status_code == 404
+
+
+# --- Push to KT для всей кампании --------------------------------------------
+
+
+async def test_push_campaign_publishes_all_drafts(client, keitaro, campaign):
+    flow1 = await stream_named(client, campaign, "Flow 1")
+    flow2 = await stream_named(client, campaign, "Flow 2")
+    await client.patch(f"/api/streams/{flow1['id']}", json={"countries": ["DE"]})
+    await client.post(f"/api/streams/{flow2['id']}/offers", json={"offer_id": 101})
+
+    response = await client.post(f"/api/campaigns/{campaign['id']}/push")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["published"], body["failed_stream_id"]) == (2, None)
+    assert [(s["name"], s["has_draft"], s["is_new"]) for s in body["streams"]] == [
+        ("Flow 1", False, False),
+        ("Flow 2", False, False),
+    ]
+    assert sorted(s["name"] for s in keitaro.streams.values()) == ["Flow 1", "Flow 2"]
+
+
+async def test_push_campaign_blocked_by_any_problem(client, keitaro, campaign):
+    flow1 = await stream_named(client, campaign, "Flow 1")
+    await client.patch(f"/api/streams/{flow1['id']}", json={"countries": ["DE"]})
+
+    response = await client.post(f"/api/campaigns/{campaign['id']}/push")
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Нельзя опубликовать: «Flow 2» — Добавьте хотя бы один оффер."
+    )
+    assert keitaro.streams == {}  # готовый Flow 1 тоже не опубликован
+
+
+async def test_push_campaign_blocked_by_keitaro_change(client, keitaro, campaign, intercept):
+    await client.patch(f"/api/streams/{intercept['id']}", json={"name": "Mine"})
+    flow2 = await stream_named(client, campaign, "Flow 2")
+    await client.post(f"/api/streams/{flow2['id']}/offers", json={"offer_id": 101})
+    keitaro.streams[intercept["keitaro_id"]]["action_payload"] = "https://changed.example"
+
+    response = await client.post(f"/api/campaigns/{campaign['id']}/push")
+    assert response.status_code == 409
+    assert "«Mine»" in response.json()["detail"]
+    assert len(keitaro.streams) == 1  # Flow 2 тоже не создан
+    assert keitaro.streams[intercept["keitaro_id"]]["name"] == "Flow 1"
+
+
+async def test_push_campaign_stops_on_keitaro_error(client, keitaro, campaign, intercept):
+    await client.patch(f"/api/streams/{intercept['id']}", json={"name": "Geo block"})
+    flow2 = await stream_named(client, campaign, "Flow 2")
+    await client.post(f"/api/streams/{flow2['id']}/offers", json={"offer_id": 101})
+    keitaro.fail_on_stream_create = True  # Flow 2 создать не получится
+
+    body = (await client.post(f"/api/campaigns/{campaign['id']}/push")).json()
+    assert body["published"] == 1
+    assert body["failed_stream_id"] == flow2["id"]
+    assert body["error"] == "Stream creation failed (fake)"
+    # Flow 1 уже опубликован, Flow 2 остался черновиком
+    assert keitaro.streams[intercept["keitaro_id"]]["name"] == "Geo block"
+    states = {s["name"]: s for s in body["streams"]}
+    assert states["Geo block"]["has_draft"] is False
+    assert states["Flow 2"]["has_draft"] is True
+
+
+async def test_push_campaign_without_drafts(client, keitaro, campaign, intercept, regular):
+    response = await client.post(f"/api/campaigns/{campaign['id']}/push")
+    assert response.status_code == 409

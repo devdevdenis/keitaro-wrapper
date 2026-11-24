@@ -4,6 +4,7 @@ from app.api.deps import KeitaroDep, SessionDep, SettingsDep
 from app.schemas import (
     CampaignDetail,
     CampaignIn,
+    CampaignPushOut,
     CampaignRecord,
     CampaignSummary,
     StreamCreate,
@@ -92,3 +93,21 @@ async def add_stream(
     kind = data.kind if data is not None else "regular"
     state = await editor.add_stream(session, campaign_id, kind, settings)
     return editor.view(state)
+
+
+@router.post("/campaigns/{campaign_id}/push", response_model=CampaignPushOut)
+async def push_campaign(
+    campaign_id: int, keitaro: KeitaroDep, session: SessionDep, settings: SettingsDep
+):
+    """Push to KT: публикует черновики всех потоков кампании одной пачкой.
+
+    422 — какой-то черновик не готов, 409 — поток изменили в Keitaro; в обоих случаях ничего не
+    публикуется. Если Keitaro ответил ошибкой посреди публикации — 200 с failed_stream_id и error.
+    """
+    result = await editor.push_campaign(session, keitaro, campaign_id, settings)
+    return CampaignPushOut(
+        published=result.published,
+        failed_stream_id=result.failed.id if result.failed else None,
+        error=result.error,
+        streams=[editor.view(s) for s in await editor.campaign_streams(session, campaign_id)],
+    )

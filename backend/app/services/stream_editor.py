@@ -7,14 +7,14 @@
 """
 
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.keitaro import KeitaroAPI
+from app.keitaro import KeitaroAPI, KeitaroError
 from app.keitaro.client import JSON
 from app.models import Country, StreamState
 from app.schemas import EditorOfferOut, StreamOut, StreamPatch
@@ -243,9 +243,76 @@ async def cancel(session: AsyncSession, state_id: int) -> StreamState:
 # --- публикация ----------------------------------------------------------------
 
 
+@dataclass
+class PushResult:
+    """Итог публикации кампании: сколько потоков ушло в Keitaro и на чём остановились."""
+
+    published: int
+    failed: StreamState | None = None
+    error: str | None = None
+
+
+async def push_campaign(
+    session: AsyncSession, keitaro: KeitaroAPI, campaign_id: int, settings: Settings
+) -> PushResult:
+    """Push to KT для всей кампании: публикует черновики всех потоков одной пачкой.
+
+    Сначала проверяет всё: если какой-то черновик не готов или поток изменили в Keitaro,
+    ничего не публикуется. Транзакций у Keitaro нет — если он ответит ошибкой посреди
+    публикации, уже опубликованные потоки остаются опубликованными, остальные — черновиками.
+    """
+    states = [s for s in await _locked_campaign_streams(session, campaign_id) if s.draft]
+    if not states:
+        raise ServiceError("Нет неопубликованных изменений", status_code=409)
+
+    problems = []
+    for state in states:
+        spec = specs.load(state.draft)
+        if problem := specs.publish_problem(spec):
+            problems.append(f"«{spec.name or 'Без названия'}» — {problem}")
+    if problems:
+        raise ServiceError("Нельзя опубликовать: " + "; ".join(problems), status_code=422)
+
+    in_keitaro: dict[int, JSON] = {}
+    if any(s.keitaro_id is not None for s in states):
+        in_keitaro = {st["id"]: st for st in await keitaro.list_streams(campaign_id)}
+    conflicts = []
+    for state in states:
+        if state.keitaro_id is None:
+            continue
+        current = in_keitaro.get(state.keitaro_id)
+        if current is None:  # поток удалили в Keitaro
+            conflicts.append(state)
+            continue
+        state.saved = specs.from_keitaro(current, specs.load(state.saved), settings).to_json()
+        if _has_conflict(state):
+            conflicts.append(state)
+    if conflicts:
+        await session.commit()  # сохраняем свежее состояние из Keitaro, черновики не трогаем
+        names = ", ".join(f"«{specs.load(s.draft).name}»" for s in conflicts)
+        raise ServiceError(
+            f"Потоки изменили в Keitaro, пока здесь были неопубликованные изменения: {names}. "
+            "Нажмите Cancel у этих потоков, чтобы увидеть актуальное состояние, и повторите "
+            "свои изменения.",
+            status_code=409,
+        )
+
+    published = 0
+    for state in sorted(states, key=lambda s: (s.position, s.id)):
+        try:
+            await _publish(keitaro, state, in_keitaro.get(state.keitaro_id), settings)
+        except KeitaroError as exc:
+            await session.commit()
+            return PushResult(published=published, failed=state, error=exc.message)
+        await session.commit()  # каждый опубликованный поток фиксируем сразу
+        published += 1
+    return PushResult(published=published)
+
+
 async def push(
     session: AsyncSession, keitaro: KeitaroAPI, state_id: int, settings: Settings
 ) -> StreamState:
+    """Push to KT для одного потока."""
     state = await _locked_state(session, state_id)
     draft = specs.load(state.draft)
     if draft is None:
@@ -253,18 +320,30 @@ async def push(
     if problem := specs.publish_problem(draft):
         raise ServiceError(problem, status_code=422)
 
-    if state.keitaro_id is None:  # новый поток
+    current = None
+    if state.keitaro_id is not None:
+        current = await keitaro.get_stream(state.keitaro_id)
+        state.saved = specs.from_keitaro(current, specs.load(state.saved), settings).to_json()
+        if _has_conflict(state):
+            await session.commit()  # сохраняем свежее состояние из Keitaro, черновик не трогаем
+            raise ServiceError(CONFLICT_MESSAGE, status_code=409)
+    await _publish(keitaro, state, current, settings)
+    await session.commit()
+    return state
+
+
+async def _publish(
+    keitaro: KeitaroAPI, state: StreamState, current: JSON | None, settings: Settings
+) -> None:
+    """Отправляет черновик в Keitaro: новый поток создаёт, существующий обновляет."""
+    draft = specs.load(state.draft)
+    if state.keitaro_id is None:
         payload = specs.to_keitaro(draft, None, settings)
         stream = await keitaro.create_stream(
             {**payload, "campaign_id": state.campaign_id, "position": state.position}
         )
         state.keitaro_id = int(stream["id"])
     else:
-        current = await keitaro.get_stream(state.keitaro_id)
-        state.saved = specs.from_keitaro(current, specs.load(state.saved), settings).to_json()
-        if _has_conflict(state):
-            await session.commit()  # сохраняем свежее состояние из Keitaro, черновик не трогаем
-            raise ServiceError(CONFLICT_MESSAGE, status_code=409)
         stream = await keitaro.update_stream(
             state.keitaro_id, specs.to_keitaro(draft, current, settings)
         )
@@ -275,8 +354,6 @@ async def push(
     state.saved = specs.from_keitaro(stream, draft, settings).to_json()
     state.draft = None
     state.draft_base = None
-    await session.commit()
-    return state
 
 
 # --- helpers -------------------------------------------------------------------
@@ -287,6 +364,17 @@ def _has_conflict(state: StreamState) -> bool:
     if state.draft is None or state.keitaro_id is None:
         return False
     return state.draft_base != specs.signature(specs.load(state.saved))
+
+
+async def _locked_campaign_streams(session: AsyncSession, campaign_id: int) -> list[StreamState]:
+    result = await session.scalars(
+        select(StreamState)
+        .where(StreamState.campaign_id == campaign_id)
+        .order_by(StreamState.position, StreamState.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return list(result)
 
 
 async def _locked_state(session: AsyncSession, state_id: int) -> StreamState:
