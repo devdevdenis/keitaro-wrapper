@@ -232,97 +232,82 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
       </AlertBox>
 
       <div class="page-grid">
-        <aside class="side">
-          <form class="card" @submit.prevent="submit">
-            <div class="card-header"><h2>Параметры</h2></div>
-            <div class="card-body fields">
-              <label class="field span-2" for="campaign-name">
-                <span class="field-label">Название</span>
-                <input
-                  id="campaign-name"
-                  v-model="form.name"
-                  class="input"
-                  placeholder="Например, Nutra DE — Facebook"
-                  autocomplete="off"
-                  maxlength="100"
-                />
-                <span class="field-hint">Так кампания называется в Keitaro</span>
-              </label>
+        <form class="card params" @submit.prevent="submit">
+          <div class="card-header"><h2>Параметры</h2></div>
+          <div class="card-body fields">
+            <label class="field span-2" for="campaign-name">
+              <span class="field-label">Название</span>
+              <input
+                id="campaign-name"
+                v-model="form.name"
+                class="input"
+                placeholder="Например, Nutra DE — Facebook"
+                autocomplete="off"
+                maxlength="100"
+              />
+              <span class="field-hint">Так кампания называется в Keitaro</span>
+            </label>
 
-              <div class="field">
-                <label class="field-label" for="campaign-domain">Домен</label>
-                <SearchSelect
-                  id="campaign-domain"
-                  v-model="form.domain_id"
-                  :options="domainOptions"
-                  :loading="dictLoading"
-                  placeholder="Выберите домен"
-                />
-              </div>
-
-              <div class="field">
-                <label class="field-label" for="campaign-group">Группа</label>
-                <SearchSelect
-                  id="campaign-group"
-                  v-model="form.group_id"
-                  :options="groupOptions"
-                  :loading="dictLoading"
-                  placeholder="Выберите группу"
-                />
-              </div>
-
-              <div class="field">
-                <label class="field-label" for="campaign-source">Источник трафика</label>
-                <SearchSelect
-                  id="campaign-source"
-                  v-model="form.traffic_source_id"
-                  :options="sourceOptions"
-                  :loading="dictLoading"
-                  placeholder="Выберите источник"
-                />
-              </div>
-
-              <AlertBox
-                v-if="formError"
-                :title="isNew ? 'Кампания не создана' : 'Не удалось сохранить'"
-                class="span-2"
-              >
-                {{ formError.message }}
-              </AlertBox>
-            </div>
-
-            <div v-if="isNew || dirty" class="card-footer">
-              <button
-                v-if="isNew"
-                type="button"
-                class="btn btn-ghost"
-                @click="router.push({ name: 'campaigns' })"
-              >
-                Отмена
-              </button>
-              <button v-else type="button" class="btn btn-ghost" :disabled="saving" @click="resetForm">
-                Сбросить
-              </button>
-              <button type="submit" class="btn btn-primary" :disabled="!formValid || saving">
-                <span v-if="saving" class="spinner" />
-                {{ isNew ? 'Создать кампанию' : 'Сохранить' }}
-              </button>
-            </div>
-          </form>
-
-          <section class="card overview">
-            <div class="card-header"><h2>Схема</h2></div>
-            <div class="card-body">
-              <StreamsOverview
-                :campaign-name="isNew ? form.name.trim() : campaign.name"
-                :streams="streams"
-                :offers-by-id="offersById"
-                placeholder="Потоки появятся после создания кампании"
-                @select="showStream"
+            <div class="field">
+              <label class="field-label" for="campaign-domain">Домен</label>
+              <SearchSelect
+                id="campaign-domain"
+                v-model="form.domain_id"
+                :options="domainOptions"
+                :loading="dictLoading"
+                placeholder="Выберите домен"
               />
             </div>
-          </section>
-        </aside>
+
+            <div class="field">
+              <label class="field-label" for="campaign-group">Группа</label>
+              <SearchSelect
+                id="campaign-group"
+                v-model="form.group_id"
+                :options="groupOptions"
+                :loading="dictLoading"
+                placeholder="Выберите группу"
+              />
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="campaign-source">Источник трафика</label>
+              <SearchSelect
+                id="campaign-source"
+                v-model="form.traffic_source_id"
+                :options="sourceOptions"
+                :loading="dictLoading"
+                placeholder="Выберите источник"
+              />
+            </div>
+
+            <AlertBox
+              v-if="formError"
+              :title="isNew ? 'Кампания не создана' : 'Не удалось сохранить'"
+              class="span-2"
+            >
+              {{ formError.message }}
+            </AlertBox>
+          </div>
+
+          <div v-if="isNew || dirty" class="card-footer">
+            <button
+              v-if="isNew"
+              type="button"
+              class="btn btn-ghost"
+              @click="router.push({ name: 'campaigns' })"
+            >
+              Отмена
+            </button>
+            <button v-else type="button" class="btn btn-ghost" :disabled="saving" @click="resetForm">
+              Сбросить
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="!formValid || saving">
+              <span v-if="saving" class="spinner" />
+              {{ isNew ? 'Создать кампанию' : 'Сохранить' }}
+            </button>
+          </div>
+        </form>
 
         <div class="main-col">
           <div class="streams-head">
@@ -386,6 +371,21 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
             </div>
           </div>
         </div>
+
+        <aside class="overview-col">
+          <section class="card overview">
+            <div class="card-header"><h2>Схема</h2></div>
+            <div class="card-body">
+              <StreamsOverview
+                :campaign-name="isNew ? form.name.trim() : campaign.name"
+                :streams="streams"
+                :offers-by-id="offersById"
+                placeholder="Потоки появятся после создания кампании"
+                @select="showStream"
+              />
+            </div>
+          </section>
+        </aside>
       </div>
     </template>
 
@@ -442,23 +442,32 @@ const busyFor = (stream) => (busy.value?.streamId === stream.id ? busy.value.act
 h2 {
   font-size: 15px;
 }
+/*
+ * Три колонки: параметры | потоки | схема. Уже 1500px схема уходит под параметры (иначе таблице
+ * офферов в середине не хватает ширины), уже 1080px — всё в одну колонку.
+ */
 .page-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-areas: 'params streams overview';
+  align-items: start;
   gap: 20px;
 }
-/* левая колонка тянется на всю высоту, чтобы схема «прилипала» при прокрутке потоков */
-.side {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.params {
+  grid-area: params;
+}
+.main-col {
+  grid-area: streams;
+  min-width: 0;
+}
+/* колонка схемы тянется на всю высоту, чтобы схема «прилипала» при прокрутке потоков */
+.overview-col {
+  grid-area: overview;
+  align-self: stretch;
 }
 .overview {
   position: sticky;
   top: 24px;
-}
-.main-col {
-  min-width: 0;
 }
 .fields {
   display: grid;
@@ -514,9 +523,20 @@ h2 {
   padding: 14px 20px 16px;
 }
 
+@media (max-width: 1499px) {
+  .page-grid {
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'params streams'
+      'overview streams';
+  }
+}
 @media (max-width: 1080px) {
   .page-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas: 'params' 'overview' 'streams';
   }
   .overview {
     position: static;
