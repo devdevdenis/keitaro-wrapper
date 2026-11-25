@@ -17,7 +17,7 @@
    make install
    ```
 
-2. Указать в `backend/.env` адрес трекера и ключ Admin API (Maintenance → Users → Admin API keys):
+2. Указать в `backend/.env` адрес трекера и ключ Admin API:
 
    ```dotenv
    KEITARO_URL=https://your-tracker.com
@@ -50,11 +50,13 @@
 
 ### Всё в Docker
 
-Создать `backend/.env`, заполнить его, как в шаге 2, и запустить:
+Создать `backend/.env` и заполнить его, как в шаге 2:
 
 ```bash
 cp backend/.env.example backend/.env
 ```
+
+Запустить:
 
 ```bash
 docker compose up --build
